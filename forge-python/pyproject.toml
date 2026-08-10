@@ -1,0 +1,50 @@
+[project]
+name = "forge-python"
+version = "0.1.0"
+description = "InfluencerForge local orchestrator (FastAPI)"
+authors = [{ name = "InfluencerForge Contributors" }]
+requires-python = ">=3.10"
+dependencies = [
+    "aiosqlite>=0.22.1",
+    "apscheduler>=3.11.3",
+    "argon2-cffi>=25.1.0",
+    "cryptography>=50.0.0",
+    "fastapi>=0.141.1",
+    "httpx>=0.28.1",
+    "pillow>=12.3.0",
+    "psutil>=7.2.2",
+    "pydantic>=2.13.4",
+    "python-multipart>=0.0.32",
+    "uvicorn[standard]>=0.52.1",
+]
+
+[project.scripts]
+forge-orchestrator = "forge_python.orchestrator:main"
+
+[build-system]
+requires = ["uv_build>=0.12.3,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "mypy>=2.3.0",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.16.2",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+ignore_missing_imports = true
+
+[tool.uv]
+package = true
