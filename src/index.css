@@ -237,6 +237,14 @@ a {
   margin-bottom: 0.65rem;
 }
 
+/* Full-body 9:16 shots crop mid-torso with default object-cover; bias to the face. */
+.gen-card-media img,
+.gen-card-media video,
+.media-face {
+  object-fit: cover;
+  object-position: center 14%;
+}
+
 .gen-card-prompt {
   color: var(--ink);
   font-size: 0.9rem;

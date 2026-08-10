@@ -234,7 +234,7 @@ export function InfluencerDetail() {
         <MediaImage
           path={heroPath}
           alt={inf.name}
-          className="h-72 w-full rounded-2xl object-cover"
+          className="h-72 w-full rounded-2xl object-cover media-face"
           fallback={inFlight.length ? "Generating…" : "No photo yet"}
         />
         <div>
@@ -349,7 +349,7 @@ export function InfluencerDetail() {
                       <MediaImage
                         path={cardPath(g)}
                         alt=""
-                        className="mb-2 h-44 w-full rounded-lg object-cover"
+                        className="mb-2 h-44 w-full rounded-lg object-cover media-face"
                         fallback="No preview"
                       />
                     </button>

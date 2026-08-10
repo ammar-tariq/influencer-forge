@@ -113,7 +113,7 @@ export function Dashboard() {
               <MediaImage
                 path={inf.avatar_path}
                 alt={inf.name}
-                className="mb-3 h-56 w-full rounded-xl object-cover"
+                className="mb-3 h-56 w-full rounded-xl object-cover media-face"
                 fallback="Portrait generating…"
               />
               <h3 className="text-xl">{inf.name}</h3>

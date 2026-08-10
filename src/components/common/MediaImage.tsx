@@ -10,6 +10,8 @@ type Props = {
   isVideo?: boolean;
   /** Extra cache key (e.g. completed_at) when the same path gets new bytes */
   cacheKey?: string | number | null;
+  /** Bias object-cover toward the face (top of full-body frames) */
+  faceFocus?: boolean;
 };
 
 function looksLikeVideo(path?: string | null) {
@@ -25,6 +27,7 @@ export function MediaImage({
   fallback = "No image yet",
   isVideo,
   cacheKey,
+  faceFocus = false,
 }: Props) {
   const baseSrc = mediaUrl(path);
   const src =
@@ -33,6 +36,9 @@ export function MediaImage({
       : baseSrc;
   const [failed, setFailed] = useState(false);
   const video = Boolean(isVideo || looksLikeVideo(path) || looksLikeVideo(src));
+  const mediaClass = [className ?? "h-40 w-full rounded-xl object-cover", faceFocus ? "media-face" : null]
+    .filter(Boolean)
+    .join(" ");
 
   useEffect(() => {
     setFailed(false);
@@ -56,7 +62,7 @@ export function MediaImage({
       <video
         key={src}
         src={src}
-        className={className ?? "h-40 w-full rounded-xl object-cover"}
+        className={mediaClass}
         controls
         muted
         loop
@@ -71,7 +77,7 @@ export function MediaImage({
       key={src}
       src={src}
       alt={alt}
-      className={className ?? "h-40 w-full rounded-xl object-cover"}
+      className={mediaClass}
       onError={() => setFailed(true)}
     />
   );

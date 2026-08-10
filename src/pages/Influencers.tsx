@@ -43,7 +43,7 @@ export function Influencers() {
                 <MediaImage
                   path={inf.avatar_path}
                   alt={inf.name}
-                  className="h-48 w-full rounded-xl object-cover"
+                  className="h-48 w-full rounded-xl object-cover media-face"
                   fallback="No photo yet"
                 />
               </div>

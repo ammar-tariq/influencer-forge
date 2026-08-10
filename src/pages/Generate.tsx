@@ -429,8 +429,9 @@ export function Generate() {
             <MediaImage
               path={selected?.avatar_path}
               alt={selected?.name ?? "Model"}
-              className="h-48 w-full rounded-xl object-cover"
+              className="h-48 w-full rounded-xl object-cover media-face"
               fallback={selected ? "No portrait yet" : "Select an influencer"}
+              faceFocus
             />
             {selected && <p className="mt-2 text-sm">{selected.name}</p>}
           </div>
