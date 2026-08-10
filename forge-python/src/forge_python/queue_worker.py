@@ -206,14 +206,8 @@ class QueueWorker:
             """,
             (str(out), str(thumb), seed, model, generation_id),
         )
-        # First successful image becomes the look's stable "model" portrait for the dashboard.
-        # Skip for NSFW so a vaulted adult shot does not become the Studio avatar.
-        if looks and not looks.get("base_portrait_path") and not is_nsfw:
-            portrait = str(thumb or out)
-            await self.db.execute(
-                "UPDATE looks SET base_portrait_path = ? WHERE id = ?",
-                (portrait, looks["id"]),
-            )
+        # Face lock is explicit: the profile "Lock this face" action sets base_portrait_path
+        # so creators can re-prompt until they like the identity shot.
         # Auto-vault NSFW when the privacy vault is unlocked.
         if is_nsfw and self.vault is not None and self.vault.unlocked:
             try:

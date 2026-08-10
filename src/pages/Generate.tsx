@@ -191,6 +191,17 @@ export function Generate() {
                 </option>
               ))}
             </select>
+            {influencerId !== "" && (
+              <p className="muted mt-2 text-sm">
+                <Link className="underline" to={`/influencers/${influencerId}`}>
+                  View profile
+                </Link>
+                {" · "}
+                <Link className="underline" to={`/history?influencer=${influencerId}`}>
+                  Their posts
+                </Link>
+              </p>
+            )}
           </div>
 
           <div className="field">
@@ -411,9 +422,26 @@ export function Generate() {
               />
             )}
             {result?.status === "completed" && (
-              <Link className="btn secondary mt-3 inline-block text-sm" to="/history">
-                Open in History
-              </Link>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Link
+                  className="btn secondary inline-block text-sm"
+                  to={
+                    influencerId !== ""
+                      ? `/history?influencer=${influencerId}`
+                      : "/history"
+                  }
+                >
+                  Open in Library
+                </Link>
+                {influencerId !== "" && (
+                  <Link
+                    className="btn secondary inline-block text-sm"
+                    to={`/influencers/${influencerId}`}
+                  >
+                    Influencer profile
+                  </Link>
+                )}
+              </div>
             )}
           </div>
         </div>

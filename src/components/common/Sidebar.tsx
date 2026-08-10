@@ -3,6 +3,7 @@ import { QueueStatusChip } from "./QueueStatus";
 
 const links = [
   ["/", "Studio home"],
+  ["/influencers", "Influencers"],
   ["/wizard", "New influencer"],
   ["/generate", "Create post"],
   ["/history", "Library"],

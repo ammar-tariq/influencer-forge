@@ -7,6 +7,8 @@ import { Dashboard } from "./pages/Dashboard";
 import { Wizard } from "./pages/Wizard";
 import { Generate } from "./pages/Generate";
 import { History } from "./pages/History";
+import { Influencers } from "./pages/Influencers";
+import { InfluencerDetail } from "./pages/InfluencerDetail";
 import { Wardrobe } from "./pages/Wardrobe";
 import { Scheduler } from "./pages/Scheduler";
 import { Vault } from "./pages/Vault";
@@ -40,6 +42,8 @@ export default function App() {
           <Shell>
             <Routes>
               <Route path="/" element={<Dashboard />} />
+              <Route path="/influencers" element={<Influencers />} />
+              <Route path="/influencers/:id" element={<InfluencerDetail />} />
               <Route path="/wizard" element={<Wizard />} />
               <Route path="/generate" element={<Generate />} />
               <Route path="/history" element={<History />} />

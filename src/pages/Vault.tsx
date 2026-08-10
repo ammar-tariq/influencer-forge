@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, mediaUrl, vaultRevealUrl } from "../api/client";
+import { ImageLightbox } from "../components/common/ImageLightbox";
 import { MediaImage } from "../components/common/MediaImage";
 import { useVault } from "../hooks/useVault";
 import type { VaultedGeneration } from "../types";
@@ -137,39 +138,29 @@ export function Vault() {
         </div>
       )}
 
-      {selected && (
-        <div className="panel">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-xl">Vaulted #{selected.id}</h2>
-              <p className="muted mt-1 text-sm">{selected.user_prompt}</p>
-            </div>
-            <button className="btn secondary" onClick={() => setSelected(null)}>
-              Close
-            </button>
-          </div>
-          {unlocked ? (
-            <img
-              src={`${vaultRevealUrl(selected.id)}?t=${Date.now()}`}
-              alt={`Vaulted ${selected.id}`}
-              className="mt-4 max-h-[70vh] w-full rounded-xl object-contain bg-[var(--bg2)]"
-            />
-          ) : (
-            <div className="mt-4 space-y-3">
-              <MediaImage
-                path={selected.teaser_path}
-                alt="Blurred teaser"
-                className="max-h-[50vh] w-full rounded-xl object-contain"
-                fallback="Teaser unavailable"
-              />
-              <p className="muted text-sm">Unlock the vault to view the full image.</p>
-            </div>
-          )}
-          {unlocked && mediaUrl(selected.teaser_path) && (
-            <p className="muted mt-2 text-xs">Cleartext is not stored — this view is decrypted in memory/cache while unlocked.</p>
-          )}
-        </div>
-      )}
+      <ImageLightbox
+        open={Boolean(selected)}
+        onClose={() => setSelected(null)}
+        title={selected ? `Vaulted #${selected.id}` : ""}
+        subtitle={selected?.user_prompt}
+        imageSrc={
+          selected
+            ? unlocked
+              ? `${vaultRevealUrl(selected.id)}?t=${Date.now()}`
+              : mediaUrl(selected.teaser_path)
+            : null
+        }
+        placeholder={unlocked ? "Image unavailable" : "Unlock the vault to view the full image"}
+      >
+        {selected && !unlocked && (
+          <p className="muted text-sm">Showing blurred teaser only — unlock above to decrypt.</p>
+        )}
+        {selected && unlocked && (
+          <p className="muted text-xs">
+            Cleartext is not stored — this view is decrypted in memory/cache while unlocked.
+          </p>
+        )}
+      </ImageLightbox>
     </div>
   );
 }

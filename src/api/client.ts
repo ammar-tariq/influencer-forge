@@ -2,6 +2,7 @@ import type {
   BootstrapStatus,
   Generation,
   Influencer,
+  InfluencerDetail,
   Looks,
   Personality,
   QueueStatus,
@@ -77,8 +78,39 @@ export const api = {
   },
 
   listInfluencers: () => request<Influencer[]>("/api/influencers"),
+  getInfluencer: async (id: number): Promise<InfluencerDetail> => {
+    try {
+      return await request<InfluencerDetail>(`/api/influencers/${id}`);
+    } catch {
+      // Fallback when a stale orchestrator lacks GET /api/influencers/{id}.
+      const [influencers, personalities, looks] = await Promise.all([
+        request<Influencer[]>("/api/influencers"),
+        request<Personality[]>("/api/personalities"),
+        request<Looks[]>("/api/looks"),
+      ]);
+      const base = influencers.find((i) => i.id === id);
+      if (!base) throw new Error("Influencer not found");
+      return {
+        ...base,
+        personality: personalities.find((p) => p.id === base.personality_id) ?? null,
+        looks: looks.find((l) => l.id === base.looks_id) ?? null,
+        face_lock: base.face_lock ?? (looks.find((l) => l.id === base.looks_id)?.reference_image_path
+          ? "face_seed"
+          : looks.find((l) => l.id === base.looks_id)?.base_portrait_path
+            ? "base_portrait"
+            : "none"),
+      };
+    }
+  },
   createInfluencer: (body: { personality_id: number; looks_id: number; name?: string }) =>
     request<Influencer>("/api/influencers", { method: "POST", body: JSON.stringify(body) }),
+  archiveInfluencer: (id: number) =>
+    request<{ status: string }>(`/api/influencers/${id}/archive`, { method: "POST" }),
+  lockFace: (id: number, body: { generation_id?: number; clear?: boolean }) =>
+    request<InfluencerDetail>(`/api/influencers/${id}/face-lock`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 
   listWardrobe: () => request<WardrobeItem[]>("/api/wardrobe"),
   createWardrobe: (body: Omit<WardrobeItem, "id">) =>

@@ -21,14 +21,17 @@
 
 ## Guided create + scene builder
 
-1. **Studio home** checklist links you through Create → Generate → Vault.
-2. **New influencer** is 3 steps: Personality → Face (gender) → Body (height, figure, skin, etc.).
-3. **Create post** defaults to **full body** and offers Pose / Dressing / Setting presets (including nude). You can still add free notes.
-4. Progress for the active job shows in the right-hand Progress panel.
+1. **Studio home** checklist links you through Create → Influencers → Generate → Vault.
+2. **New influencer** is 3 steps: Personality → Face (gender) → Body (height, figure, skin, etc.). After create you land on that influencer’s **profile**.
+3. On the profile, **Face lock setup** shows identity-shot progress. Edit the prompt, re-roll, or upload a Face Seed, then **Lock this face**. Until locked, later gens won’t use img2img identity.
+4. **Influencers** (sidebar) lists everyone; open a card for personality/looks, all their posts, Create post, or Archive.
+5. **Library** (`/history`) filters with `?influencer={id}` — also linked from each profile (“All posts” / “Their posts”).
+6. **Create post** defaults to **full body** and offers Pose / Dressing / Setting presets (including nude). You can still add free notes.
+7. Progress for the active job shows in the right-hand Progress panel.
 
 ## Face consistency (img2img lock)
 
-When a look has a **Face Seed** upload or a **base portrait** (first SFW headshot), generation uses `image_img2img.json`:
+When a look has a **Face Seed** upload or a **base portrait** (locked on the influencer profile), generation uses `image_img2img.json`:
 
 1. Reference image is resized into `ComfyUI/input/iforge_face_{id}.png`
 2. ComfyUI LoadImage → VAEEncode → KSampler (denoise ~0.72 SFW / ~0.82 NSFW)
@@ -66,7 +69,7 @@ Orchestrator serves files from the app data `media/` folder at `http://127.0.0.1
 | `media/uploads/face_*.png` | `/media/uploads/face_*.png` |
 
 The UI never uses raw filesystem paths as `<img src>` — it maps them with `mediaUrl()`.
-Studio cards use face seed / base portrait / latest generation. Generate polls the job and shows the result. History opens a full-size preview.
+Studio / Influencers cards use face seed / base portrait / latest generation. Generate polls the job and shows the result. Library and influencer profiles open full-size previews.
 
 ## Dev: app “crashes” mid-generation
 

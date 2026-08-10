@@ -44,22 +44,29 @@ export function Dashboard() {
       cta: "Open Create",
     },
     {
+      done: hasInfluencers,
+      title: "2. Browse your influencers",
+      detail: "See everyone, open a profile, and jump into their posts",
+      to: "/influencers",
+      cta: "Influencers",
+    },
+    {
       done: hasGens,
-      title: "2. Generate a full-body post",
+      title: "3. Generate a full-body post",
       detail: "Pick framing, pose, and outfit — prompts are optional extras",
       to: "/generate",
       cta: "Open Generate",
     },
     {
       done: Boolean(vault.data?.configured),
-      title: "3. Set a Privacy Vault PIN",
+      title: "4. Set a Privacy Vault PIN",
       detail: "Encrypts NSFW outputs automatically when unlocked",
       to: "/vault",
       cta: "Open Vault",
     },
     {
       done: readiness.data?.mode === "real",
-      title: "4. Real AI mode green",
+      title: "5. Real AI mode green",
       detail: readiness.data?.summary ?? "Finish the readiness checklist for ComfyUI",
       to: "/settings",
       cta: "Settings",
@@ -121,8 +128,8 @@ export function Dashboard() {
         <div className="panel">
           <h2 className="text-xl">Create your first influencer</h2>
           <p className="muted mt-2">
-            You’ll set personality, face, and body (including gender and figure props), then jump
-            straight into Generate.
+            You’ll set personality, face, and body, then open their profile to create posts and
+            browse everything they’ve made.
           </p>
           <Link className="btn mt-4 inline-block" to="/wizard">
             Start Create wizard
@@ -147,11 +154,14 @@ export function Dashboard() {
                   : " · no face lock yet"}
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
-                <Link className="btn inline-block" to="/generate" state={{ createdId: inf.id, name: inf.name }}>
+                <Link className="btn inline-block" to={`/influencers/${inf.id}`}>
+                  Open profile
+                </Link>
+                <Link className="btn secondary inline-block" to="/generate" state={{ createdId: inf.id, name: inf.name }}>
                   Create post
                 </Link>
-                <Link className="btn secondary inline-block" to="/history">
-                  History
+                <Link className="btn secondary inline-block" to={`/history?influencer=${inf.id}`}>
+                  Their posts
                 </Link>
               </div>
             </div>

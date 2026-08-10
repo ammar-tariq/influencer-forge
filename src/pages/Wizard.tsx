@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
 import { SelectWithOther } from "../components/common/SelectWithOther";
 import {
@@ -33,6 +33,7 @@ const STEPS = ["Personality", "Face", "Body"] as const;
 
 export function Wizard() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
@@ -177,7 +178,16 @@ export function Wizard() {
       });
       return influencer;
     },
-    onSuccess: (inf) => navigate("/generate", { state: { createdId: inf.id, name: inf.name } }),
+    onSuccess: async (inf) => {
+      qc.invalidateQueries({ queryKey: ["influencers"] });
+      try {
+        const detail = await api.getInfluencer(inf.id);
+        qc.setQueryData(["influencer", inf.id], detail);
+      } catch {
+        qc.setQueryData(["influencer", inf.id], inf);
+      }
+      navigate(`/influencers/${inf.id}`, { state: { justCreated: true } });
+    },
     onError: (err: Error) => setError(err.message),
   });
 
@@ -186,8 +196,8 @@ export function Wizard() {
       <header>
         <h1 className="text-3xl tracking-tight">Create influencer</h1>
         <p className="muted mt-1">
-          Step {step} of 3 — {STEPS[step - 1]}. We’ll queue a first full-body photo, then take you to
-          Generate.
+          Step {step} of 3 — {STEPS[step - 1]}. We’ll queue a first full-body photo, then open their
+          profile so you can lock the face.
         </p>
         <ol className="mt-4 flex gap-2 text-xs">
           {STEPS.map((label, i) => {
@@ -437,7 +447,7 @@ export function Wizard() {
               Back
             </button>
             <button className="btn" disabled={!bodyReady || create.isPending} onClick={() => create.mutate()}>
-              {create.isPending ? "Creating…" : "Create & go to Generate"}
+              {create.isPending ? "Creating…" : "Create & open profile"}
             </button>
             <Link className="btn secondary" to="/">
               Cancel

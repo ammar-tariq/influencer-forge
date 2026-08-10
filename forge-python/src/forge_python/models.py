@@ -81,6 +81,21 @@ class Influencer(BaseModel):
     niche: str | None = None
     # How identity is locked for generation: face_seed | base_portrait | none
     face_lock: str | None = None
+    generation_count: int = 0
+
+
+class InfluencerDetail(Influencer):
+    """Influencer plus personality + looks for the detail screen."""
+
+    personality: Personality | None = None
+    looks: Looks | None = None
+
+
+class FaceLockRequest(BaseModel):
+    """Pin a completed SFW generation (or clear) as the look's identity reference."""
+
+    generation_id: int | None = None
+    clear: bool = False
 
 
 class WardrobeCreate(BaseModel):

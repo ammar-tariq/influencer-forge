@@ -1,0 +1,144 @@
+"""Influencer list, detail, and archive API."""
+
+from pathlib import Path
+
+import pytest
+from httpx import ASGITransport, AsyncClient
+
+
+@pytest.fixture
+async def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("IFORGE_DATA_DIR", str(tmp_path))
+    from forge_python import config
+
+    config.settings.data_dir = tmp_path
+    config.settings.db_path = tmp_path / "data.db"
+    config.settings.media_dir = tmp_path / "media"
+    config.settings.generations_dir = config.settings.media_dir / "generations"
+    config.settings.thumbnails_dir = config.settings.media_dir / "thumbnails"
+    config.settings.models_dir = tmp_path / "models"
+    config.settings.vault_dir = tmp_path / "vault"
+    config.settings.uploads_dir = config.settings.media_dir / "uploads"
+    config.settings.legacy_uploads_dir = tmp_path / "uploads"
+    config.settings.ensure_directories()
+
+    from forge_python.orchestrator import app, db
+
+    await db.close()
+    db.db_path = config.settings.db_path
+    await db.connect()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+    await db.close()
+
+
+async def _create_influencer(client: AsyncClient, name: str = "Natasha") -> int:
+    personality = await client.post(
+        "/api/personalities",
+        json={
+            "name": name,
+            "bio": "Test bio",
+            "traits": {"tone": "warm"},
+            "niche": "Lifestyle",
+            "age_rating": "Adult",
+        },
+    )
+    assert personality.status_code == 200
+    pid = personality.json()["id"]
+
+    looks = await client.post(
+        "/api/looks",
+        json={
+            "name": f"{name} look",
+            "age": 24,
+            "gender": "Female",
+            "ethnicity": "Slavic",
+            "hair_color": "Blonde",
+            "body": {"height": "5'7\"", "breast_size": "Medium"},
+        },
+    )
+    assert looks.status_code == 200
+    lid = looks.json()["id"]
+
+    inf = await client.post(
+        "/api/influencers",
+        json={"personality_id": pid, "looks_id": lid, "name": name},
+    )
+    assert inf.status_code == 200
+    return int(inf.json()["id"])
+
+
+@pytest.mark.asyncio
+async def test_list_detail_and_archive(client: AsyncClient) -> None:
+    iid = await _create_influencer(client, "Nova")
+
+    listed = await client.get("/api/influencers")
+    assert listed.status_code == 200
+    rows = listed.json()
+    assert any(r["id"] == iid for r in rows)
+    match = next(r for r in rows if r["id"] == iid)
+    assert match["generation_count"] == 0
+    assert match["niche"] == "Lifestyle"
+    assert match["age_rating"] == "Adult"
+
+    detail = await client.get(f"/api/influencers/{iid}")
+    assert detail.status_code == 200
+    body = detail.json()
+    assert body["name"] == "Nova"
+    assert body["personality"]["niche"] == "Lifestyle"
+    assert body["looks"]["gender"] == "Female"
+    assert body["looks"]["body"]["height"] == "5'7\""
+
+    missing = await client.get("/api/influencers/99999")
+    assert missing.status_code == 404
+
+    archived = await client.post(f"/api/influencers/{iid}/archive")
+    assert archived.status_code == 200
+    assert archived.json()["status"] == "archived"
+
+    listed_after = await client.get("/api/influencers")
+    assert all(r["id"] != iid for r in listed_after.json())
+
+    detail_after = await client.get(f"/api/influencers/{iid}")
+    assert detail_after.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_face_lock_from_generation(client: AsyncClient) -> None:
+    from forge_python import config
+    from forge_python.orchestrator import db
+
+    iid = await _create_influencer(client, "LockMe")
+    out = config.settings.generations_dir / "lock_test.png"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 32)
+
+    cur = await db.execute(
+        """
+        INSERT INTO generations(
+            influencer_id, user_prompt, expanded_prompt, workflow_type,
+            model_used, llm_used, aspect_ratio, status, output_path, is_nsfw, is_vaulted
+        ) VALUES (?, ?, ?, 'image', 'stub', 'template', '9:16', 'completed', ?, 0, 0)
+        """,
+        (iid, "full body studio portrait", "full body studio portrait", str(out)),
+    )
+    gid = int(cur.lastrowid)
+
+    locked = await client.post(
+        f"/api/influencers/{iid}/face-lock",
+        json={"generation_id": gid},
+    )
+    assert locked.status_code == 200
+    body = locked.json()
+    assert body["face_lock"] == "base_portrait"
+    assert body["looks"]["base_portrait_path"] == str(out)
+
+    cleared = await client.post(
+        f"/api/influencers/{iid}/face-lock",
+        json={"clear": True},
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["face_lock"] in ("none", None)
+    assert not cleared.json()["looks"].get("base_portrait_path")

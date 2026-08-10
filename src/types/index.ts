@@ -42,6 +42,12 @@ export interface Influencer {
   niche?: string | null;
   /** face_seed | base_portrait | none */
   face_lock?: string | null;
+  generation_count?: number;
+}
+
+export interface InfluencerDetail extends Influencer {
+  personality?: Personality | null;
+  looks?: Looks | null;
 }
 
 export interface Generation {

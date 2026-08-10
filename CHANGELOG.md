@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Influencers list + detail screens (`/influencers`, `/influencers/:id`) with personality/looks, per-influencer generations, archive, and Library deep links (`?influencer=`).
+- Face-lock setup on the profile: identity prompt retries, Face Seed upload, `POST /api/influencers/{id}/face-lock` (explicit lock; no longer auto-locks on first SFW).
+- `GET /api/influencers/{id}` (`InfluencerDetail`) and `POST /api/influencers/{id}/archive`; list rows include `generation_count`.
 - ComfyUI client queue/history/view path with stub fallback and `/api/comfyui/status`.
 - Resumable model bootstrap downloader driven by `resources/bootstrap/models.json`.
 - Face Seed fingerprint extraction (`face_seed.py`) stored on Looks rows.

@@ -29,11 +29,13 @@ from forge_python.llm_manager import (
 from forge_python.model_downloader import ModelDownloader
 from forge_python.models import (
     BootstrapStatus,
+    FaceLockRequest,
     Generation,
     GenerationCreate,
     HealthResponse,
     Influencer,
     InfluencerCreate,
+    InfluencerDetail,
     Looks,
     LooksCreate,
     Personality,
@@ -123,7 +125,7 @@ async def health() -> HealthResponse:
         version=__version__,
         data_dir=str(settings.data_dir),
         api="influencerforge",
-        features=["readiness", "reset", "comfyui"],
+        features=["readiness", "reset", "comfyui", "influencer_detail"],
     )
 
 
@@ -356,6 +358,14 @@ def _face_lock_from_looks(looks: dict[str, Any] | None) -> str:
     return "none"
 
 
+async def _generation_count(influencer_id: int) -> int:
+    row = await db.fetchone(
+        "SELECT COUNT(*) AS c FROM generations WHERE influencer_id = ?",
+        (influencer_id,),
+    )
+    return int((row or {}).get("c") or 0)
+
+
 def _influencer_from_row(
     r: dict[str, Any],
     *,
@@ -363,6 +373,7 @@ def _influencer_from_row(
     age_rating: str | None = None,
     niche: str | None = None,
     face_lock: str | None = None,
+    generation_count: int = 0,
 ) -> Influencer:
     return Influencer(
         id=r["id"],
@@ -375,6 +386,24 @@ def _influencer_from_row(
         age_rating=age_rating,
         niche=niche,
         face_lock=face_lock or "none",
+        generation_count=generation_count,
+    )
+
+
+async def _build_influencer(r: dict[str, Any]) -> Influencer:
+    avatar = await _resolve_avatar_path(int(r["id"]), int(r["looks_id"]))
+    personality = await db.fetchone(
+        "SELECT age_rating, niche FROM personalities WHERE id = ?",
+        (r["personality_id"],),
+    )
+    looks = await db.fetchone("SELECT * FROM looks WHERE id = ?", (r["looks_id"],))
+    return _influencer_from_row(
+        r,
+        avatar_path=avatar,
+        age_rating=(personality or {}).get("age_rating"),
+        niche=(personality or {}).get("niche"),
+        face_lock=_face_lock_from_looks(looks),
+        generation_count=await _generation_count(int(r["id"])),
     )
 
 
@@ -382,24 +411,34 @@ def _influencer_from_row(
 @app.get("/api/influencers", response_model=list[Influencer])
 async def list_influencers() -> list[Influencer]:
     rows = await db.fetchall("SELECT * FROM influencers WHERE is_active = 1 ORDER BY id DESC")
-    out: list[Influencer] = []
-    for r in rows:
-        avatar = await _resolve_avatar_path(int(r["id"]), int(r["looks_id"]))
-        personality = await db.fetchone(
-            "SELECT age_rating, niche FROM personalities WHERE id = ?",
-            (r["personality_id"],),
+    return [await _build_influencer(r) for r in rows]
+
+
+@app.get("/api/influencers/{influencer_id}", response_model=InfluencerDetail)
+async def get_influencer(influencer_id: int) -> InfluencerDetail:
+    row = await db.fetchone("SELECT * FROM influencers WHERE id = ?", (influencer_id,))
+    if not row or not row["is_active"]:
+        raise HTTPException(404, "Influencer not found")
+    base = await _build_influencer(row)
+    personality_row = await db.fetchone(
+        "SELECT * FROM personalities WHERE id = ?",
+        (row["personality_id"],),
+    )
+    looks_row = await db.fetchone("SELECT * FROM looks WHERE id = ?", (row["looks_id"],))
+    personality = None
+    if personality_row:
+        personality = Personality(
+            id=personality_row["id"],
+            name=personality_row["name"],
+            bio=personality_row["bio"],
+            traits=traits_from_json(personality_row["traits"]),
+            niche=personality_row["niche"],
+            age_rating=personality_row["age_rating"],
+            system_prompt=personality_row["system_prompt"],
+            created_at=personality_row["created_at"],
         )
-        looks = await db.fetchone("SELECT * FROM looks WHERE id = ?", (r["looks_id"],))
-        out.append(
-            _influencer_from_row(
-                r,
-                avatar_path=avatar,
-                age_rating=(personality or {}).get("age_rating"),
-                niche=(personality or {}).get("niche"),
-                face_lock=_face_lock_from_looks(looks),
-            )
-        )
-    return out
+    looks = _looks_from_row(looks_row) if looks_row else None
+    return InfluencerDetail(**base.model_dump(), personality=personality, looks=looks)
 
 
 @app.post("/api/influencers", response_model=Influencer)
@@ -415,18 +454,55 @@ async def create_influencer(body: InfluencerCreate) -> Influencer:
     )
     iid = cur.lastrowid
     assert iid is not None
-    avatar = looks.get("base_portrait_path") or looks.get("reference_image_path")
-    return Influencer(
-        id=int(iid),
-        personality_id=body.personality_id,
-        looks_id=body.looks_id,
-        name=name,
-        is_active=True,
-        avatar_path=str(avatar) if avatar else None,
-        age_rating=personality.get("age_rating"),
-        niche=personality.get("niche"),
-        face_lock=_face_lock_from_looks(looks),
+    row = await db.fetchone("SELECT * FROM influencers WHERE id = ?", (int(iid),))
+    assert row
+    return await _build_influencer(row)
+
+
+@app.post("/api/influencers/{influencer_id}/archive")
+async def archive_influencer(influencer_id: int) -> dict[str, str]:
+    row = await db.fetchone("SELECT id FROM influencers WHERE id = ?", (influencer_id,))
+    if not row:
+        raise HTTPException(404, "Influencer not found")
+    await db.execute("UPDATE influencers SET is_active = 0 WHERE id = ?", (influencer_id,))
+    return {"status": "archived"}
+
+
+@app.post("/api/influencers/{influencer_id}/face-lock", response_model=InfluencerDetail)
+async def lock_influencer_face(influencer_id: int, body: FaceLockRequest) -> InfluencerDetail:
+    """Set or clear the look's base portrait used for face-consistent img2img."""
+    row = await db.fetchone("SELECT * FROM influencers WHERE id = ? AND is_active = 1", (influencer_id,))
+    if not row:
+        raise HTTPException(404, "Influencer not found")
+    looks_id = int(row["looks_id"])
+
+    if body.clear:
+        await db.execute(
+            "UPDATE looks SET base_portrait_path = NULL WHERE id = ?",
+            (looks_id,),
+        )
+        return await get_influencer(influencer_id)
+
+    if body.generation_id is None:
+        raise HTTPException(400, "generation_id required unless clear=true")
+
+    gen = await db.fetchone("SELECT * FROM generations WHERE id = ?", (body.generation_id,))
+    if not gen or int(gen["influencer_id"]) != influencer_id:
+        raise HTTPException(404, "Generation not found for this influencer")
+    if gen["status"] != "completed":
+        raise HTTPException(400, "Generation is not completed yet")
+    if gen["is_nsfw"] or gen["is_vaulted"]:
+        raise HTTPException(400, "Use an SFW (non-vaulted) shot for face lock")
+
+    path = gen.get("output_path") or gen.get("output_thumbnail_path")
+    if not path or not Path(str(path)).is_file():
+        raise HTTPException(400, "Generation has no usable image file")
+
+    await db.execute(
+        "UPDATE looks SET base_portrait_path = ? WHERE id = ?",
+        (str(path), looks_id),
     )
+    return await get_influencer(influencer_id)
 
 
 # --- Wardrobe ---
