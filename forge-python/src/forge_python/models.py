@@ -71,6 +71,9 @@ class Influencer(BaseModel):
     name: str
     is_active: bool = True
     created_at: str | None = None
+    # Absolute disk path for the best available preview (portrait → face seed → latest gen).
+    # Frontend maps this through mediaUrl() to /media/...
+    avatar_path: str | None = None
 
 
 class WardrobeCreate(BaseModel):

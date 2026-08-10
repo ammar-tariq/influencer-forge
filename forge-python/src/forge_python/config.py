@@ -41,9 +41,12 @@ class Settings:
         self.media_dir = self.data_dir / "media"
         self.generations_dir = self.media_dir / "generations"
         self.thumbnails_dir = self.media_dir / "thumbnails"
+        # Under media/ so FastAPI StaticFiles can serve face seeds at /media/uploads/...
+        self.uploads_dir = self.media_dir / "uploads"
         self.models_dir = self.data_dir / "models"
         self.vault_dir = self.data_dir / "vault"
-        self.uploads_dir = self.data_dir / "uploads"
+        # Pre-media layout (data_dir/uploads) — migrated on ensure_directories()
+        self.legacy_uploads_dir = self.data_dir / "uploads"
         self.comfyui_root = Path(
             os.environ.get(
                 "IFORGE_COMFYUI_ROOT",
@@ -77,6 +80,19 @@ class Settings:
             self.uploads_dir,
         ):
             path.mkdir(parents=True, exist_ok=True)
+        self._migrate_legacy_uploads()
+
+    def _migrate_legacy_uploads(self) -> None:
+        """Move face seeds from data_dir/uploads into media/uploads for HTTP serving."""
+        legacy = self.legacy_uploads_dir
+        if not legacy.exists() or legacy.resolve() == self.uploads_dir.resolve():
+            return
+        for child in legacy.iterdir():
+            if not child.is_file():
+                continue
+            dest = self.uploads_dir / child.name
+            if not dest.exists():
+                child.replace(dest)
 
 
 settings = Settings()

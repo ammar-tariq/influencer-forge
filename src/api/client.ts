@@ -91,6 +91,7 @@ export const api = {
     const suffix = q.toString() ? `?${q}` : "";
     return request<Generation[]>(`/api/generations${suffix}`);
   },
+  getGeneration: (id: number) => request<Generation>(`/api/generations/${id}`),
   createGeneration: (body: {
     influencer_id: number;
     user_prompt: string;
@@ -142,12 +143,27 @@ export const api = {
     request(`/api/vault/generations/${id}`, { method: "POST" }),
 };
 
+/**
+ * Map absolute on-disk paths from the API to HTTP URLs served by the orchestrator.
+ * Never use raw filesystem paths as <img src> in the webview.
+ */
 export function mediaUrl(path?: string | null): string | undefined {
   if (!path) return undefined;
-  const name = path.split(/[/\\]/).pop();
+  // Already an HTTP(S) URL
+  if (/^https?:\/\//i.test(path)) return path;
+  const normalized = path.replace(/\\/g, "/");
+  const name = normalized.split("/").pop();
   if (!name) return undefined;
-  if (name.includes("_thumb") || name.includes("_teaser")) {
-    return `${BASE}/media/thumbnails/${name}`;
+
+  if (normalized.includes("/uploads/") || name.startsWith("face_")) {
+    return `${BASE}/media/uploads/${encodeURIComponent(name)}`;
   }
-  return `${BASE}/media/generations/${name}`;
+  if (
+    normalized.includes("/thumbnails/") ||
+    name.includes("_thumb") ||
+    name.includes("_teaser")
+  ) {
+    return `${BASE}/media/thumbnails/${encodeURIComponent(name)}`;
+  }
+  return `${BASE}/media/generations/${encodeURIComponent(name)}`;
 }

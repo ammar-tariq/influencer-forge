@@ -168,3 +168,10 @@ class QueueWorker:
             """,
             (str(out), str(thumb), seed, model, generation_id),
         )
+        # First successful image becomes the look's stable "model" portrait for the dashboard.
+        if looks and not looks.get("base_portrait_path"):
+            portrait = str(thumb or out)
+            await self.db.execute(
+                "UPDATE looks SET base_portrait_path = ? WHERE id = ?",
+                (portrait, looks["id"]),
+            )

@@ -12,7 +12,7 @@ from typing import Any
 import uvicorn
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from forge_python import __version__
 from forge_python.config import settings
@@ -306,11 +306,48 @@ def _looks_from_row(r: dict[str, Any]) -> Looks:
     )
 
 
+async def _resolve_avatar_path(influencer_id: int, looks_id: int) -> str | None:
+    """Best available preview: base portrait → face seed → latest completed generation."""
+    looks = await db.fetchone("SELECT * FROM looks WHERE id = ?", (looks_id,))
+    if looks:
+        for key in ("base_portrait_path", "reference_image_path"):
+            val = looks.get(key)
+            if val:
+                return str(val)
+    latest = await db.fetchone(
+        """
+        SELECT output_thumbnail_path, output_path FROM generations
+        WHERE influencer_id = ? AND status = 'completed'
+        ORDER BY id DESC LIMIT 1
+        """,
+        (influencer_id,),
+    )
+    if latest:
+        return str(latest.get("output_thumbnail_path") or latest.get("output_path") or "") or None
+    return None
+
+
+def _influencer_from_row(r: dict[str, Any], avatar_path: str | None = None) -> Influencer:
+    return Influencer(
+        id=r["id"],
+        personality_id=r["personality_id"],
+        looks_id=r["looks_id"],
+        name=r["name"],
+        is_active=bool(r["is_active"]),
+        created_at=r.get("created_at"),
+        avatar_path=avatar_path,
+    )
+
+
 # --- Influencers ---
 @app.get("/api/influencers", response_model=list[Influencer])
 async def list_influencers() -> list[Influencer]:
     rows = await db.fetchall("SELECT * FROM influencers WHERE is_active = 1 ORDER BY id DESC")
-    return [Influencer(**r) for r in rows]
+    out: list[Influencer] = []
+    for r in rows:
+        avatar = await _resolve_avatar_path(int(r["id"]), int(r["looks_id"]))
+        out.append(_influencer_from_row(r, avatar))
+    return out
 
 
 @app.post("/api/influencers", response_model=Influencer)
@@ -326,12 +363,14 @@ async def create_influencer(body: InfluencerCreate) -> Influencer:
     )
     iid = cur.lastrowid
     assert iid is not None
+    avatar = looks.get("base_portrait_path") or looks.get("reference_image_path")
     return Influencer(
         id=int(iid),
         personality_id=body.personality_id,
         looks_id=body.looks_id,
         name=name,
         is_active=True,
+        avatar_path=str(avatar) if avatar else None,
     )
 
 
@@ -650,10 +689,24 @@ async def vault_generation(generation_id: int) -> dict[str, str]:
         raise HTTPException(401, str(exc)) from exc
 
 
-# Media
-if settings.media_dir.exists() or True:
+# Media — dynamic FileResponse so IFORGE_DATA_DIR / tests can retarget settings.media_dir
+_MEDIA_SUBDIRS = frozenset({"generations", "thumbnails", "uploads"})
+
+
+@app.get("/media/{subdir}/{filename}")
+async def serve_media(subdir: str, filename: str) -> FileResponse:
+    """Serve generation / thumbnail / upload images for the desktop UI."""
+    if subdir not in _MEDIA_SUBDIRS:
+        raise HTTPException(404, "Unknown media folder")
+    # Block path traversal in the filename segment.
+    if Path(filename).name != filename or ".." in filename:
+        raise HTTPException(400, "Invalid filename")
     settings.ensure_directories()
-    app.mount("/media", StaticFiles(directory=str(settings.media_dir)), name="media")
+    path = (settings.media_dir / subdir / filename).resolve()
+    root = settings.media_dir.resolve()
+    if not str(path).startswith(str(root)) or not path.is_file():
+        raise HTTPException(404, "File not found")
+    return FileResponse(path)
 
 
 def main() -> None:

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "../api/client";
+import { MediaImage } from "../components/common/MediaImage";
 
 export function Post() {
   const generations = useQuery({ queryKey: ["generations"], queryFn: () => api.listGenerations() });
@@ -8,7 +9,9 @@ export function Post() {
   const [watermark, setWatermark] = useState("InfluencerForge");
   const [overlay, setOverlay] = useState("");
   const [rotate, setRotate] = useState(0);
-  const [result, setResult] = useState<string | null>(null);
+  const [resultPath, setResultPath] = useState<string | null>(null);
+
+  const selected = (generations.data ?? []).find((g) => g.id === id);
 
   const run = useMutation({
     mutationFn: () =>
@@ -18,7 +21,7 @@ export function Post() {
         watermark_text: watermark || undefined,
         overlay_text: overlay || undefined,
       }),
-    onSuccess: (res) => setResult(res.output_path),
+    onSuccess: (res) => setResultPath(res.output_path),
   });
 
   return (
@@ -41,6 +44,13 @@ export function Post() {
               ))}
           </select>
         </div>
+        {selected && (
+          <MediaImage
+            path={selected.output_path}
+            alt={`Generation ${selected.id}`}
+            className="mb-4 h-56 w-full rounded-xl object-contain bg-[var(--bg2)]"
+          />
+        )}
         <div className="field">
           <label>Rotate degrees</label>
           <input type="number" value={rotate} onChange={(e) => setRotate(Number(e.target.value))} />
@@ -56,7 +66,16 @@ export function Post() {
         <button className="btn" disabled={!id} onClick={() => run.mutate()}>
           Apply edits
         </button>
-        {result && <p className="muted mt-3 text-sm">Wrote {result}</p>}
+        {resultPath && (
+          <div className="mt-4">
+            <p className="muted mb-2 text-sm">Edited result</p>
+            <MediaImage
+              path={resultPath}
+              alt="Edited"
+              className="h-56 w-full rounded-xl object-contain bg-[var(--bg2)]"
+            />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -18,7 +18,8 @@ async def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     config.settings.thumbnails_dir = config.settings.media_dir / "thumbnails"
     config.settings.models_dir = tmp_path / "models"
     config.settings.vault_dir = tmp_path / "vault"
-    config.settings.uploads_dir = tmp_path / "uploads"
+    config.settings.uploads_dir = config.settings.media_dir / "uploads"
+    config.settings.legacy_uploads_dir = tmp_path / "uploads"
     config.settings.ensure_directories()
 
     from forge_python.orchestrator import app, db

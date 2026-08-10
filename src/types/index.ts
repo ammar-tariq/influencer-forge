@@ -23,6 +23,7 @@ export interface Looks {
   base_prompt?: string | null;
   reference_image_path?: string | null;
   face_embedding?: string | null;
+  base_portrait_path?: string | null;
   created_at?: string | null;
 }
 
@@ -33,6 +34,8 @@ export interface Influencer {
   name: string;
   is_active: boolean;
   created_at?: string | null;
+  /** Disk path; use mediaUrl() for <img src>. */
+  avatar_path?: string | null;
 }
 
 export interface Generation {

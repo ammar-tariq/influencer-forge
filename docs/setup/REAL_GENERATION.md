@@ -19,6 +19,19 @@
 - Generate page toggle **Require real ComfyUI output** sets `require_real: true` and fails the job instead of painting a fake PNG.
 - Set `IFORGE_ALLOW_STUB_FALLBACK=0` globally to force real-only.
 
+## Viewing images in the app
+
+Orchestrator serves files from the app data `media/` folder at `http://127.0.0.1:8765/media/...`:
+
+| On disk | URL |
+|---------|-----|
+| `media/generations/{id}.png` | `/media/generations/{id}.png` |
+| `media/thumbnails/{id}_thumb.png` | `/media/thumbnails/{id}_thumb.png` |
+| `media/uploads/face_*.png` | `/media/uploads/face_*.png` |
+
+The UI never uses raw filesystem paths as `<img src>` — it maps them with `mediaUrl()`.
+Studio cards use face seed / base portrait / latest generation. Generate polls the job and shows the result. History opens a full-size preview.
+
 ## Dev: app “crashes” mid-generation
 
 If `npm run tauri dev` logs `File src-tauri/resources/comfyui/ComfyUI/temp changed. Rebuilding application…`, the desktop process is being **hot-reloaded**, not randomly crashing. ComfyUI writes into `temp/` while sampling; Tauri’s watcher used to treat that as a Rust source change.

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { api } from "../api/client";
@@ -44,7 +44,18 @@ export function Wizard() {
   const [style, setStyle] = useState<string>("Casual");
   const [styleOther, setStyleOther] = useState("");
   const [faceFile, setFaceFile] = useState<File | null>(null);
+  const [facePreview, setFacePreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!faceFile) {
+      setFacePreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(faceFile);
+    setFacePreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [faceFile]);
 
   const resolvedNiche = resolveSelectValue(niche, nicheOther);
   const resolvedTone = resolveSelectValue(tone, toneOther);
@@ -97,11 +108,20 @@ export function Wizard() {
       if (faceFile) {
         await api.uploadFaceSeed(looks.id, faceFile);
       }
-      await api.createInfluencer({
+      const influencer = await api.createInfluencer({
         personality_id: personality.id,
         looks_id: looks.id,
         name: name.trim(),
       });
+      // Queue a first studio portrait so the dashboard has a model image ASAP.
+      await api.createGeneration({
+        influencer_id: influencer.id,
+        user_prompt:
+          "studio headshot portrait, soft key light, looking at camera, sharp focus, natural skin",
+        aspect_ratio: "1:1",
+        workflow_type: "image",
+      });
+      return influencer;
     },
     onSuccess: () => navigate("/"),
     onError: (err: Error) => setError(err.message),
@@ -112,7 +132,8 @@ export function Wizard() {
       <header>
         <h1 className="text-3xl tracking-tight">Create influencer</h1>
         <p className="muted mt-1">
-          Step {step} of 2 — {step === 1 ? "Personality" : "Looks"}. Use Other to type anything not listed.
+          Step {step} of 2 — {step === 1 ? "Personality" : "Looks"}. A first portrait is queued after
+          create so you can see your model on the Studio page.
         </p>
       </header>
 
@@ -222,7 +243,18 @@ export function Wizard() {
           />
           <div className="field">
             <label>Face Seed (optional reference)</label>
-            <input type="file" accept="image/*" onChange={(e) => setFaceFile(e.target.files?.[0] ?? null)} />
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setFaceFile(e.target.files?.[0] ?? null)}
+            />
+            {facePreview && (
+              <img
+                src={facePreview}
+                alt="Face seed preview"
+                className="mt-3 h-48 w-full rounded-xl object-cover"
+              />
+            )}
           </div>
           {error && <p className="mb-3 text-sm text-[var(--danger)]">{error}</p>}
           <div className="flex gap-3">

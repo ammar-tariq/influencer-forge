@@ -1,10 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
+import { MediaImage } from "../components/common/MediaImage";
 import { ReadinessChecklist } from "../components/common/ReadinessChecklist";
 
 export function Dashboard() {
-  const influencers = useQuery({ queryKey: ["influencers"], queryFn: api.listInfluencers });
+  const influencers = useQuery({
+    queryKey: ["influencers"],
+    queryFn: api.listInfluencers,
+    refetchInterval: 3000,
+  });
   const suggestions = useQuery({
     queryKey: ["suggestions"],
     queryFn: () => api.suggestions("Lifestyle"),
@@ -20,7 +25,7 @@ export function Dashboard() {
       <header>
         <h1 className="text-3xl tracking-tight">Studio</h1>
         <p className="muted mt-1">
-          CRUD is ready now. Real AI images start when the checklist below is green.
+          Your influencers and model previews. Real AI images start when the checklist below is green.
         </p>
       </header>
 
@@ -37,12 +42,23 @@ export function Dashboard() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {influencers.data.map((inf) => (
-            <div key={inf.id} className="panel">
+            <div key={inf.id} className="panel overflow-hidden">
+              <MediaImage
+                path={inf.avatar_path}
+                alt={inf.name}
+                className="mb-3 h-56 w-full rounded-xl object-cover"
+                fallback="Portrait generating…"
+              />
               <h3 className="text-xl">{inf.name}</h3>
               <p className="muted text-sm">Influencer #{inf.id}</p>
-              <Link className="btn mt-4 inline-block" to="/generate">
-                Generate
-              </Link>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Link className="btn inline-block" to="/generate">
+                  Generate
+                </Link>
+                <Link className="btn secondary inline-block" to="/history">
+                  History
+                </Link>
+              </div>
             </div>
           ))}
         </div>
