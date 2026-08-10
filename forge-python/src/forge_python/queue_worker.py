@@ -41,6 +41,19 @@ class QueueWorker:
         self._require_real.clear()
         return count
 
+    async def stop(self) -> None:
+        """Cancel the worker loop so shutdown/reset does not touch a closed DB."""
+        self.pause()
+        self.clear()
+        self._wake.set()
+        if self._task and not self._task.done():
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+        self._task = None
+
     def status(self) -> dict[str, int | bool]:
         return {
             "pending": len(self._queue),

@@ -11,6 +11,9 @@ class HealthResponse(BaseModel):
     status: str = "ok"
     version: str
     data_dir: str
+    # Used by the Tauri shell to detect stale orchestrators that only expose /api/health.
+    api: str = "influencerforge"
+    features: list[str] = Field(default_factory=lambda: ["readiness", "reset", "comfyui"])
 
 
 class BootstrapStatus(BaseModel):

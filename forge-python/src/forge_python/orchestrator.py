@@ -115,7 +115,13 @@ def _require_schedules() -> ScheduleService:
 
 @app.get("/api/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
-    return HealthResponse(status="ok", version=__version__, data_dir=str(settings.data_dir))
+    return HealthResponse(
+        status="ok",
+        version=__version__,
+        data_dir=str(settings.data_dir),
+        api="influencerforge",
+        features=["readiness", "reset", "comfyui"],
+    )
 
 
 @app.get("/api/bootstrap/status", response_model=BootstrapStatus)
@@ -524,8 +530,8 @@ async def full_reset(body: ResetRequest) -> dict[str, Any]:
         )
 
     q = _require_queue()
-    q.pause()
     cleared = q.clear()
+    await q.stop()
     if vault is not None:
         vault.lock()
     if schedules is not None:
