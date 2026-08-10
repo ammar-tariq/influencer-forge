@@ -355,16 +355,20 @@ class ComfyUIClient:
             prompt[clip_node].setdefault("inputs", {})["clip_name"] = clip_vision_file
         return prompt
 
-    async def object_info_class_types(self) -> set[str]:
+    async def object_info(self) -> dict[str, Any]:
         try:
-            async with httpx.AsyncClient(timeout=4.0) as client:
+            async with httpx.AsyncClient(timeout=8.0) as client:
                 resp = await client.get(f"{self.base_url}/object_info")
                 if resp.status_code != 200:
-                    return set()
+                    return {}
                 data = resp.json()
-                return set(data.keys()) if isinstance(data, dict) else set()
+                return data if isinstance(data, dict) else {}
         except (httpx.HTTPError, OSError, ValueError):
-            return set()
+            return {}
+
+    async def object_info_class_types(self) -> set[str]:
+        data = await self.object_info()
+        return set(data.keys())
 
     async def queue_prompt(self, prompt: dict[str, Any]) -> str:
         payload = {"prompt": prompt, "client_id": self._client_id}
@@ -606,6 +610,15 @@ class ComfyUIClient:
             ipadapter_file=ipadapter_file,
             clip_vision_file=clip_vision_file,
         )
+        if is_nsfw and workflow_type != "video":
+            from forge_python.nsfw_lora import apply_nsfw_lora
+
+            lora_name = apply_nsfw_lora(prompt)
+            if lora_name:
+                logger.info("NSFW LoRA applied for gen %s: %s", generation_id, lora_name)
+                model_tag = str(bundle.get("model") or "sdxl")
+                if "lora" not in model_tag.lower():
+                    bundle["model"] = f"{model_tag}+nsfw-lora"
         prompt_id = await self.queue_prompt(prompt)
         media = await self.wait_for_media(prompt_id)
         settings.ensure_directories()

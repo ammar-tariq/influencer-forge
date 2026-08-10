@@ -270,6 +270,11 @@ class SchedulePatch(BaseModel):
     is_active: bool | None = None
 
 
+class GoogleCodeExchange(BaseModel):
+    code: str
+    redirect_uri: str | None = None
+
+
 class PostProcessRequest(BaseModel):
     generation_id: int
     rotate_degrees: int = 0

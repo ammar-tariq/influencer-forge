@@ -8,7 +8,8 @@ from typing import Any
 
 from forge_python.comfyui_client import ComfyUIClient
 from forge_python.config import settings
-from forge_python.lip_sync import ffmpeg_available
+from forge_python.lip_sync import ffmpeg_available, wav2lip_ready
+from forge_python.nsfw_lora import find_nsfw_lora
 
 CHECKPOINT_GLOBS = ("*.safetensors", "*.ckpt", "*.pt")
 
@@ -145,6 +146,16 @@ def find_motion_module() -> Path | None:
     return None
 
 
+def instantid_custom_node_installed() -> bool:
+    root = settings.comfyui_root / "custom_nodes"
+    if not root.is_dir():
+        return False
+    for name in ("ComfyUI_InstantID", "comfyui_instantid", "InstantID"):
+        if (root / name).is_dir():
+            return True
+    return any(p.is_dir() and "instantid" in p.name.lower() for p in root.iterdir())
+
+
 async def collect_readiness(comfy: ComfyUIClient | None = None) -> dict[str, Any]:
     client = comfy or ComfyUIClient()
     comfy_installed = (settings.comfyui_root / "main.py").exists()
@@ -158,10 +169,14 @@ async def collect_readiness(comfy: ComfyUIClient | None = None) -> dict[str, Any
     video_wf = workflow_ready("video_animate.json")
     ad_node = animatediff_custom_node_installed()
     motion = find_motion_module()
+    w2l_ok = wav2lip_ready()
+    instantid_ok = instantid_custom_node_installed()
+    nsfw_lora = find_nsfw_lora()
     node_types: set[str] = set()
     if healthy:
         node_types = await client.object_info_class_types()
     faceid_nodes_live = {"IPAdapterFaceID", "IPAdapterModelLoader"}.issubset(node_types) if node_types else False
+    wav2lip_live = "Wav2Lip" in node_types if node_types else False
     checklist = [
         {
             "id": "comfyui_source",
@@ -239,10 +254,36 @@ async def collect_readiness(comfy: ComfyUIClient | None = None) -> dict[str, Any
         },
         {
             "id": "talking_head",
-            "label": "Talking-head / lip-sync (ffmpeg)",
-            "ok": ffmpeg_available(),
-            "detail": "ffmpeg on PATH → face still + audio mux (ComfyUI-Wav2Lip later)",
-            "fix": "Install ffmpeg (e.g. brew install ffmpeg). Needs Face Seed + audio upload.",
+            "label": "Talking-head / lip-sync",
+            "ok": ffmpeg_available() or (w2l_ok and wav2lip_live),
+            "detail": (
+                f"wav2lip={'live' if wav2lip_live else ('ready' if w2l_ok else 'missing')}; "
+                f"ffmpeg={'yes' if ffmpeg_available() else 'no'}"
+            ),
+            "fix": (
+                "Prefer: ./scripts/install-wav2lip.sh then restart ComfyUI. "
+                "Fallback: brew install ffmpeg (still face + audio mux)."
+            ),
+        },
+        {
+            "id": "instantid",
+            "label": "InstantID custom node (optional alternate identity)",
+            "ok": instantid_ok,
+            "detail": "installed" if instantid_ok else "not installed — IP-Adapter FaceID is the primary path",
+            "fix": (
+                "Optional: git clone ComfyUI_InstantID under custom_nodes/. "
+                "App generation uses IP-Adapter FaceID / img2img today."
+            ),
+        },
+        {
+            "id": "nsfw_lora",
+            "label": "NSFW LoRA weight (optional)",
+            "ok": nsfw_lora is not None,
+            "detail": str(nsfw_lora) if nsfw_lora else "none — NSFW still uses prompt + denoise ramp",
+            "fix": (
+                "Place a LoRA with nsfw/nude in the filename under "
+                f"{settings.comfyui_root / 'models' / 'loras'}."
+            ),
         },
     ]
     # Core path for "real" mode — FaceID/AnimateDiff remain optional enhancements.
@@ -269,6 +310,10 @@ async def collect_readiness(comfy: ComfyUIClient | None = None) -> dict[str, Any
         "faceid_ready": faceid_wf and faceid_node and faceid_w["ok"],
         "faceid_weights": faceid_w,
         "animatediff_ready": video_wf and ad_node and motion is not None,
+        "wav2lip_ready": w2l_ok,
+        "wav2lip_live": wav2lip_live,
+        "instantid_ready": instantid_ok,
+        "nsfw_lora": str(nsfw_lora) if nsfw_lora else None,
         "checklist": checklist,
         "summary": (
             "Real generation ready."
