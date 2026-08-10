@@ -25,7 +25,7 @@ class ComfyUIClient:
             async with httpx.AsyncClient(timeout=2.0) as client:
                 resp = await client.get(f"{self.base_url}/system_stats")
                 return resp.status_code == 200
-        except Exception:
+        except (httpx.HTTPError, OSError):
             return False
 
     def load_workflow(self, name: str) -> dict[str, Any]:

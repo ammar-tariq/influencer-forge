@@ -6,7 +6,6 @@ import os
 import sys
 from pathlib import Path
 
-
 APP_NAME = "InfluencerForge"
 API_HOST = "127.0.0.1"
 API_PORT = 8765

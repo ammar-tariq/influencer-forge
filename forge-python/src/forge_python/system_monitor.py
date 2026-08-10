@@ -21,7 +21,7 @@ def collect_stats(queue_pending: int = 0, queue_processing: int = 0) -> SystemSt
             if entries:
                 temp = float(entries[0].current)
                 break
-    except Exception:
+    except (AttributeError, OSError, ValueError):
         temp = None
 
     return SystemStats(

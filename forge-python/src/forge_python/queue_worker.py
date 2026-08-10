@@ -73,7 +73,7 @@ class QueueWorker:
             generation_id = self._queue.popleft()
             try:
                 await self._process(generation_id)
-            except Exception as exc:  # noqa: BLE001 - surface to DB
+            except Exception as exc:
                 logger.exception("Generation %s failed", generation_id)
                 await self.db.execute(
                     """

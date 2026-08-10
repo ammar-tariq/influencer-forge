@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import logging
 import shutil
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncIterator
+from typing import Any
 
 import uvicorn
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -241,7 +242,7 @@ async def create_looks(body: LooksCreate) -> Looks:
 
 
 @app.post("/api/looks/{looks_id}/face-seed", response_model=Looks)
-async def upload_face_seed(looks_id: int, file: UploadFile = File(...)) -> Looks:
+async def upload_face_seed(looks_id: int, file: UploadFile) -> Looks:
     row = await db.fetchone("SELECT * FROM looks WHERE id = ?", (looks_id,))
     if not row:
         raise HTTPException(404, "Looks not found")

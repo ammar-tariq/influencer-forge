@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -31,7 +31,7 @@ class ScheduleService:
 
     async def tick(self) -> None:
         rows = await self.db.fetchall("SELECT * FROM schedules WHERE is_active = 1")
-        now = datetime.now()
+        now = datetime.now(timezone.utc).astimezone()
         for row in rows:
             next_trigger = row.get("next_trigger")
             if not next_trigger:

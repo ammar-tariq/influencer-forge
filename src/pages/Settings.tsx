@@ -1,29 +1,21 @@
-import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
+
+function settingMap(items: { key: string; value: string }[] | undefined) {
+  return Object.fromEntries((items ?? []).map((s) => [s.key, s.value]));
+}
 
 export function Settings() {
   const qc = useQueryClient();
   const settings = useQuery({ queryKey: ["settings"], queryFn: api.listSettings });
-  const [provider, setProvider] = useState("local");
-  const [openai, setOpenai] = useState("");
-  const [anthropic, setAnthropic] = useState("");
-  const [gemini, setGemini] = useState("");
-
-  useEffect(() => {
-    const map = Object.fromEntries((settings.data ?? []).map((s) => [s.key, s.value]));
-    if (map.llm_provider) setProvider(map.llm_provider);
-    if (map.openai_api_key) setOpenai(map.openai_api_key);
-    if (map.anthropic_api_key) setAnthropic(map.anthropic_api_key);
-    if (map.gemini_api_key) setGemini(map.gemini_api_key);
-  }, [settings.data]);
+  const map = settingMap(settings.data);
 
   const save = useMutation({
-    mutationFn: async () => {
-      await api.putSetting("llm_provider", provider);
-      await api.putSetting("openai_api_key", openai);
-      await api.putSetting("anthropic_api_key", anthropic);
-      await api.putSetting("gemini_api_key", gemini);
+    mutationFn: async (form: FormData) => {
+      await api.putSetting("llm_provider", String(form.get("llm_provider") ?? "local"));
+      await api.putSetting("openai_api_key", String(form.get("openai_api_key") ?? ""));
+      await api.putSetting("anthropic_api_key", String(form.get("anthropic_api_key") ?? ""));
+      await api.putSetting("gemini_api_key", String(form.get("gemini_api_key") ?? ""));
       await api.putSetting("image_model", "stub_or_sdxl");
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["settings"] }),
@@ -35,10 +27,16 @@ export function Settings() {
         <h1 className="text-3xl tracking-tight">Model settings</h1>
         <p className="muted mt-1">Keys stay on this machine. No telemetry.</p>
       </header>
-      <div className="panel">
+      <form
+        className="panel"
+        onSubmit={(e) => {
+          e.preventDefault();
+          save.mutate(new FormData(e.currentTarget));
+        }}
+      >
         <div className="field">
           <label>LLM provider</label>
-          <select value={provider} onChange={(e) => setProvider(e.target.value)}>
+          <select name="llm_provider" defaultValue={map.llm_provider ?? "local"} key={map.llm_provider ?? "local"}>
             <option value="local">Local (template / llama)</option>
             <option value="openai">OpenAI</option>
             <option value="claude">Claude</option>
@@ -47,20 +45,24 @@ export function Settings() {
         </div>
         <div className="field">
           <label>OpenAI API key</label>
-          <input value={openai} onChange={(e) => setOpenai(e.target.value)} />
+          <input name="openai_api_key" defaultValue={map.openai_api_key ?? ""} key={`o-${map.openai_api_key ?? ""}`} />
         </div>
         <div className="field">
           <label>Anthropic API key</label>
-          <input value={anthropic} onChange={(e) => setAnthropic(e.target.value)} />
+          <input
+            name="anthropic_api_key"
+            defaultValue={map.anthropic_api_key ?? ""}
+            key={`a-${map.anthropic_api_key ?? ""}`}
+          />
         </div>
         <div className="field">
           <label>Gemini API key</label>
-          <input value={gemini} onChange={(e) => setGemini(e.target.value)} />
+          <input name="gemini_api_key" defaultValue={map.gemini_api_key ?? ""} key={`g-${map.gemini_api_key ?? ""}`} />
         </div>
-        <button className="btn" onClick={() => save.mutate()}>
+        <button className="btn" type="submit">
           Save settings
         </button>
-      </div>
+      </form>
     </div>
   );
 }
