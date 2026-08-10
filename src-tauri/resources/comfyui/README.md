@@ -1,6 +1,11 @@
 # ComfyUI bundle location
 
-This folder is intentionally empty in git. Clone ComfyUI locally (ignored by `.gitignore`):
+This folder is intentionally empty in git. Clone ComfyUI locally (ignored by `.gitignore`).
+
+**Dev tip:** `src-tauri/.taurignore` excludes this tree from the Tauri file watcher.
+Without that, ComfyUI writing `temp/` during a run triggers `File …/temp changed. Rebuilding application…`, which restarts the desktop app and aborts in-flight jobs.
+
+## Clone
 
 ```bash
 cd src-tauri/resources/comfyui

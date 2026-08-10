@@ -1,0 +1,9 @@
+# ComfyUI lives under resources/ but writes constantly during generation
+# (temp/, output/, input/, .venv/, models/). Watching those paths makes
+# `tauri dev` rebuild + kill the app mid-job. Ignore the whole tree.
+resources/comfyui/
+
+# Other bundled runtime / generated noise
+resources/**/temp/
+resources/**/output/
+target/

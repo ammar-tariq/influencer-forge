@@ -19,6 +19,12 @@
 - Generate page toggle **Require real ComfyUI output** sets `require_real: true` and fails the job instead of painting a fake PNG.
 - Set `IFORGE_ALLOW_STUB_FALLBACK=0` globally to force real-only.
 
+## Dev: app “crashes” mid-generation
+
+If `npm run tauri dev` logs `File src-tauri/resources/comfyui/ComfyUI/temp changed. Rebuilding application…`, the desktop process is being **hot-reloaded**, not randomly crashing. ComfyUI writes into `temp/` while sampling; Tauri’s watcher used to treat that as a Rust source change.
+
+Fix: `src-tauri/.taurignore` ignores `resources/comfyui/`. Restart `tauri dev` after pulling that file. Fallback: `npm run tauri dev -- --no-watch`.
+
 ## GPU note
 
 SDXL needs a capable GPU (or a slow CPU run). Without hardware, readiness may be green but jobs will be slow or OOM — that is a runtime issue, not CRUD.
