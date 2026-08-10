@@ -3,12 +3,18 @@ import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import { MediaImage } from "../components/common/MediaImage";
 import { ReadinessChecklist } from "../components/common/ReadinessChecklist";
+import { useVault } from "../hooks/useVault";
 
 export function Dashboard() {
   const influencers = useQuery({
     queryKey: ["influencers"],
     queryFn: api.listInfluencers,
     refetchInterval: 3000,
+  });
+  const generations = useQuery({
+    queryKey: ["generations-dash"],
+    queryFn: () => api.listGenerations(),
+    refetchInterval: 4000,
   });
   const suggestions = useQuery({
     queryKey: ["suggestions"],
@@ -19,29 +25,112 @@ export function Dashboard() {
     queryFn: api.reminders,
     refetchInterval: 10000,
   });
+  const { status: vault } = useVault();
+  const readiness = useQuery({ queryKey: ["readiness"], queryFn: api.readiness, refetchInterval: 8000 });
+
+  const hasInfluencers = (influencers.data?.length ?? 0) > 0;
+  const hasGens = (generations.data?.length ?? 0) > 0;
+  const pending = generations.data?.filter((g) =>
+    ["pending", "queued", "processing"].includes(g.status),
+  ).length;
+  const nsfwPendingVault = vault.data?.pending_nsfw ?? 0;
+
+  const nextSteps = [
+    {
+      done: hasInfluencers,
+      title: "1. Create an influencer",
+      detail: "Personality → Face → Body (gender, height, curves, etc.)",
+      to: "/wizard",
+      cta: "Open Create",
+    },
+    {
+      done: hasGens,
+      title: "2. Generate a full-body post",
+      detail: "Pick framing, pose, and outfit — prompts are optional extras",
+      to: "/generate",
+      cta: "Open Generate",
+    },
+    {
+      done: Boolean(vault.data?.configured),
+      title: "3. Set a Privacy Vault PIN",
+      detail: "Encrypts NSFW outputs automatically when unlocked",
+      to: "/vault",
+      cta: "Open Vault",
+    },
+    {
+      done: readiness.data?.mode === "real",
+      title: "4. Real AI mode green",
+      detail: readiness.data?.summary ?? "Finish the readiness checklist for ComfyUI",
+      to: "/settings",
+      cta: "Settings",
+    },
+  ];
 
   return (
     <div className="space-y-6">
       <header>
         <h1 className="text-3xl tracking-tight">Studio</h1>
         <p className="muted mt-1">
-          Your influencers and model previews. Real AI images start when the checklist below is green.
+          Follow the checklist — each step links you to the right screen.
+          {pending ? ` · ${pending} generation(s) in progress` : ""}
         </p>
       </header>
 
+      <div className="panel">
+        <h2 className="text-lg">What to do next</h2>
+        <ul className="mt-4 space-y-3">
+          {nextSteps.map((s) => (
+            <li
+              key={s.title}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[var(--bg2)] px-4 py-3"
+            >
+              <div>
+                <div className="font-semibold">
+                  {s.done ? "✓ " : ""}
+                  {s.title}
+                </div>
+                <p className="muted text-sm">{s.detail}</p>
+              </div>
+              {!s.done && (
+                <Link className="btn secondary" to={s.to}>
+                  {s.cta}
+                </Link>
+              )}
+              {s.done && (
+                <Link className="btn secondary" to={s.to}>
+                  Open
+                </Link>
+              )}
+            </li>
+          ))}
+        </ul>
+        {nsfwPendingVault > 0 && (
+          <p className="mt-4 text-sm text-[var(--accent-2)]">
+            {nsfwPendingVault} NSFW file(s) still in cleartext —{" "}
+            <Link className="underline" to="/vault">
+              unlock vault & secure them
+            </Link>
+            .
+          </p>
+        )}
+      </div>
+
       <ReadinessChecklist />
 
-      {!influencers.data?.length ? (
+      {!hasInfluencers ? (
         <div className="panel">
           <h2 className="text-xl">Create your first influencer</h2>
-          <p className="muted mt-2">Personality + Looks in a short wizard. No cloud account required.</p>
+          <p className="muted mt-2">
+            You’ll set personality, face, and body (including gender and figure props), then jump
+            straight into Generate.
+          </p>
           <Link className="btn mt-4 inline-block" to="/wizard">
-            Open wizard
+            Start Create wizard
           </Link>
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          {influencers.data.map((inf) => (
+          {influencers.data!.map((inf) => (
             <div key={inf.id} className="panel overflow-hidden">
               <MediaImage
                 path={inf.avatar_path}
@@ -51,14 +140,15 @@ export function Dashboard() {
               />
               <h3 className="text-xl">{inf.name}</h3>
               <p className="muted text-sm">
-                Influencer #{inf.id}
+                #{inf.id}
+                {inf.age_rating ? ` · ${inf.age_rating}` : ""}
                 {inf.face_lock && inf.face_lock !== "none"
                   ? ` · face lock: ${inf.face_lock.replace("_", " ")}`
                   : " · no face lock yet"}
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
-                <Link className="btn inline-block" to="/generate">
-                  Generate
+                <Link className="btn inline-block" to="/generate" state={{ createdId: inf.id, name: inf.name }}>
+                  Create post
                 </Link>
                 <Link className="btn secondary inline-block" to="/history">
                   History
@@ -70,7 +160,7 @@ export function Dashboard() {
       )}
 
       <div className="panel">
-        <h2 className="text-lg">Smart daily suggestions</h2>
+        <h2 className="text-lg">Ideas</h2>
         <ul className="muted mt-3 list-disc space-y-1 pl-5 text-sm">
           {(suggestions.data?.suggestions ?? []).map((s) => (
             <li key={s}>{s}</li>
@@ -82,7 +172,11 @@ export function Dashboard() {
         <div className="panel border-[var(--accent-2)]">
           <h2 className="text-lg">Schedule reminders</h2>
           <p className="muted mt-2 text-sm">
-            {reminders.data?.reminders.length} due — head to Generate when ready.
+            {reminders.data?.reminders.length} due —{" "}
+            <Link className="underline" to="/generate">
+              Generate now
+            </Link>
+            .
           </p>
         </div>
       )}

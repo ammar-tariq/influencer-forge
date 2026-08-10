@@ -19,6 +19,13 @@
 - Generate page toggle **Require real ComfyUI output** sets `require_real: true` and fails the job instead of painting a fake PNG.
 - Set `IFORGE_ALLOW_STUB_FALLBACK=0` globally to force real-only.
 
+## Guided create + scene builder
+
+1. **Studio home** checklist links you through Create → Generate → Vault.
+2. **New influencer** is 3 steps: Personality → Face (gender) → Body (height, figure, skin, etc.).
+3. **Create post** defaults to **full body** and offers Pose / Dressing / Setting presets (including nude). You can still add free notes.
+4. Progress for the active job shows in the right-hand Progress panel.
+
 ## Face consistency (img2img lock)
 
 When a look has a **Face Seed** upload or a **base portrait** (first SFW headshot), generation uses `image_img2img.json`:

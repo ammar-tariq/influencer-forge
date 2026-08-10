@@ -114,9 +114,11 @@ Stores the physical "body" of the influencer (the face seed).
 | `id` | INTEGER | PRIMARY KEY AUTOINCREMENT | Unique identifier |
 | `name` | TEXT | NOT NULL | e.g., "Elena's Look" |
 | `age` | INTEGER | | 18-80 |
+| `gender` | TEXT | | "Female", "Male", "Trans girl", or custom |
 | `ethnicity` | TEXT | | "Caucasian", "Asian", "Black", etc. |
 | `hair_color` | TEXT | | "Blonde", "Brown", "Black", etc. |
 | `hair_style` | TEXT | | "Long straight", "Short curly", etc. |
+| `body_json` | TEXT (JSON) | | height, body_type, breast_size/chest, waist, hips, butt_size, skin_tone, muscle_tone, body_hair, … |
 | `eye_color` | TEXT | | "Blue", "Green", "Brown" |
 | `style` | TEXT | | "Casual", "Elegant", "Sporty" |
 | `base_prompt` | TEXT | | Text prompt used to generate the base portrait |

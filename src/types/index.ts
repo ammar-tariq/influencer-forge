@@ -15,11 +15,13 @@ export interface Looks {
   id: number;
   name: string;
   age?: number | null;
+  gender?: string | null;
   ethnicity?: string | null;
   hair_color?: string | null;
   hair_style?: string | null;
   eye_color?: string | null;
   style?: string | null;
+  body?: Record<string, string>;
   base_prompt?: string | null;
   reference_image_path?: string | null;
   face_embedding?: string | null;

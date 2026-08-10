@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from pathlib import Path
 
 from forge_python.comfyui_client import ComfyUIClient
-from forge_python.db import Database
+from forge_python.db import Database, body_from_json
 from forge_python.llm_manager import (
     build_looks_prompt,
     expand_prompt,
@@ -148,8 +148,10 @@ class QueueWorker:
             hair_style=(looks or {}).get("hair_style"),
             eye_color=(looks or {}).get("eye_color"),
             style=(looks or {}).get("style"),
+            gender=(looks or {}).get("gender"),
+            body=body_from_json((looks or {}).get("body_json")),
             for_nsfw=is_nsfw,
-        ) or (looks or {}).get("base_prompt") or "adult woman"
+        ) or (looks or {}).get("base_prompt") or "adult person"
         # Wardrobe fights nude/explicit scenes — only apply when SFW.
         wardrobe_keywords = None
         expanded = expand_prompt(

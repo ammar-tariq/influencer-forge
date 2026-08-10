@@ -5,6 +5,7 @@ from forge_python.llm_manager import (
     build_looks_prompt,
     build_system_prompt,
     expand_prompt,
+    gender_phrase,
     prompt_implies_nsfw,
     resolve_negative_prompt,
 )
@@ -21,19 +22,40 @@ def test_build_prompts() -> None:
         hair_style="Long straight",
         eye_color="Brown",
         style="Casual",
+        gender="Female",
+        body={"height": "Tall", "breast_size": "Medium", "butt_size": "Round / medium"},
     )
-    assert "28-year-old" in looks
+    assert "28-year-old adult woman" in looks
+    assert "breast size: Medium" in looks
     expanded = expand_prompt(
-        "morning coffee",
+        "full body shot, standing, casual outfit",
         influencer_name="Elena",
         looks_prompt=looks,
         wardrobe_keywords="gray hoodie",
     )
-    assert "morning coffee" in expanded
+    assert "full body" in expanded
     assert "gray hoodie" in expanded
+    assert not expanded.lower().startswith("portrait of")
 
 
-def test_nsfw_expansion_puts_scene_first_and_drops_fashion_style() -> None:
+def test_gender_and_body_for_male() -> None:
+    assert gender_phrase("Trans girl") == "trans woman, feminine presentation"
+    looks = build_looks_prompt(
+        age=30,
+        ethnicity="Caucasian",
+        hair_color="Brown",
+        hair_style="Short",
+        eye_color="Blue",
+        style=None,
+        gender="Male",
+        body={"chest": "Broad chest", "height": "Tall"},
+        for_nsfw=True,
+    )
+    assert "man" in looks
+    assert "chest: Broad chest" in looks
+
+
+def test_nsfw_expansion_respects_full_body_scene() -> None:
     looks = build_looks_prompt(
         age=20,
         ethnicity="Caucasian",
@@ -41,25 +63,21 @@ def test_nsfw_expansion_puts_scene_first_and_drops_fashion_style() -> None:
         hair_style="Long straight",
         eye_color="Brown",
         style="Casual",
+        gender="Female",
+        body={"breast_size": "Full / large"},
         for_nsfw=True,
     )
-    assert "Casual" not in looks
-    assert "portrait" not in looks.lower()
     expanded = expand_prompt(
-        "Topless",
+        "full body shot, head to toe visible in frame, fully nude, no clothing, bedroom",
         influencer_name="Natasha",
         looks_prompt=looks,
-        wardrobe_keywords="hoodie",
         is_nsfw=True,
     )
-    assert expanded.startswith("Topless")
-    assert "nude" in expanded
-    assert "waist up" in expanded
-    assert "hoodie" not in expanded
-    assert "Casual style" not in expanded
+    assert expanded.startswith("full body")
+    assert "waist up" not in expanded
+    assert "entire subject visible" in expanded
     neg = resolve_negative_prompt(is_nsfw=True)
     assert "bra" in neg
-    assert "shirt" in neg
 
 
 def test_prompt_implies_nsfw() -> None:

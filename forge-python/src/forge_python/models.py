@@ -41,11 +41,14 @@ class Personality(PersonalityCreate):
 class LooksCreate(BaseModel):
     name: str
     age: int | None = 25
+    gender: str | None = "Female"
     ethnicity: str | None = None
     hair_color: str | None = None
     hair_style: str | None = None
     eye_color: str | None = None
     style: str | None = None
+    # height, body_type, breast_size/chest, waist, hips, butt_size, skin_tone, muscle_tone, ...
+    body: dict[str, str] = Field(default_factory=dict)
     base_prompt: str | None = None
     reference_image_path: str | None = None
 

@@ -26,11 +26,13 @@ CREATE TABLE IF NOT EXISTS looks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     age INTEGER,
+    gender TEXT,
     ethnicity TEXT,
     hair_color TEXT,
     hair_style TEXT,
     eye_color TEXT,
     style TEXT,
+    body_json TEXT,
     base_prompt TEXT,
     reference_image_path TEXT,
     face_embedding BLOB,
@@ -143,7 +145,17 @@ class Database:
         self._conn = await aiosqlite.connect(self.db_path)
         self._conn.row_factory = aiosqlite.Row
         await self._conn.executescript(SCHEMA)
+        await self._migrate_looks_columns()
         await self._conn.commit()
+
+    async def _migrate_looks_columns(self) -> None:
+        """Add gender/body_json on existing DBs created before those columns existed."""
+        cur = await self.conn.execute("PRAGMA table_info(looks)")
+        cols = {row[1] for row in await cur.fetchall()}
+        if "gender" not in cols:
+            await self.conn.execute("ALTER TABLE looks ADD COLUMN gender TEXT")
+        if "body_json" not in cols:
+            await self.conn.execute("ALTER TABLE looks ADD COLUMN body_json TEXT")
 
     async def close(self) -> None:
         if self._conn is not None:
@@ -194,3 +206,20 @@ def traits_from_json(raw: str | None) -> dict[str, str]:
         return {}
     data = json.loads(raw)
     return {str(k): str(v) for k, v in data.items()}
+
+
+def body_to_json(body: dict[str, str] | None) -> str | None:
+    if not body:
+        return None
+    cleaned = {str(k): str(v) for k, v in body.items() if v}
+    return json.dumps(cleaned) if cleaned else None
+
+
+def body_from_json(raw: str | None) -> dict[str, str]:
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    return {str(k): str(v) for k, v in data.items() if v}

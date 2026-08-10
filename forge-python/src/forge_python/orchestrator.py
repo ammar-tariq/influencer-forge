@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse
 
 from forge_python import __version__
 from forge_python.config import settings
-from forge_python.db import Database, traits_from_json, traits_to_json
+from forge_python.db import Database, body_from_json, body_to_json, traits_from_json, traits_to_json
 from forge_python.face_seed import extract_face_embedding
 from forge_python.llm_manager import (
     build_looks_prompt,
@@ -245,21 +245,25 @@ async def create_looks(body: LooksCreate) -> Looks:
         hair_style=body.hair_style,
         eye_color=body.eye_color,
         style=body.style,
+        gender=body.gender,
+        body=body.body,
     )
     cur = await db.execute(
         """
-        INSERT INTO looks(name, age, ethnicity, hair_color, hair_style, eye_color, style,
-                          base_prompt, reference_image_path)
-        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO looks(name, age, gender, ethnicity, hair_color, hair_style, eye_color, style,
+                          body_json, base_prompt, reference_image_path)
+        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             body.name,
             body.age,
+            body.gender,
             body.ethnicity,
             body.hair_color,
             body.hair_style,
             body.eye_color,
             body.style,
+            body_to_json(body.body),
             base_prompt,
             body.reference_image_path,
         ),
@@ -295,11 +299,13 @@ def _looks_from_row(r: dict[str, Any]) -> Looks:
         id=r["id"],
         name=r["name"],
         age=r["age"],
+        gender=r.get("gender") or "Female",
         ethnicity=r["ethnicity"],
         hair_color=r["hair_color"],
         hair_style=r["hair_style"],
         eye_color=r["eye_color"],
         style=r["style"],
+        body=body_from_json(r.get("body_json")),
         base_prompt=r["base_prompt"],
         reference_image_path=r["reference_image_path"],
         face_embedding="present" if r.get("face_embedding") else None,
@@ -524,6 +530,8 @@ async def create_generation(body: GenerationCreate) -> Generation:
         hair_style=(looks or {}).get("hair_style"),
         eye_color=(looks or {}).get("eye_color"),
         style=(looks or {}).get("style"),
+        gender=(looks or {}).get("gender"),
+        body=body_from_json((looks or {}).get("body_json")),
         for_nsfw=is_nsfw,
     )
     expanded = expand_prompt(

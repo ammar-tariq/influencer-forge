@@ -2,16 +2,16 @@ import { NavLink } from "react-router-dom";
 import { QueueStatusChip } from "./QueueStatus";
 
 const links = [
-  ["/", "Dashboard"],
-  ["/wizard", "Create"],
-  ["/generate", "Generate"],
-  ["/history", "History"],
+  ["/", "Studio home"],
+  ["/wizard", "New influencer"],
+  ["/generate", "Create post"],
+  ["/history", "Library"],
   ["/wardrobe", "Wardrobe"],
   ["/scheduler", "Scheduler"],
-  ["/vault", "Vault"],
+  ["/vault", "Privacy Vault"],
   ["/settings", "Settings"],
-  ["/monitor", "Monitor"],
-  ["/post", "Post"],
+  ["/monitor", "System"],
+  ["/post", "Edit photo"],
 ] as const;
 
 export function Sidebar() {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { OTHER, resolveSelectValue } from "./options";
+import { OTHER, composeScenePrompt, resolveSelectValue } from "./options";
 
 describe("resolveSelectValue", () => {
   it("returns listed option as-is", () => {
@@ -12,5 +12,28 @@ describe("resolveSelectValue", () => {
 
   it("returns empty string when Other and blank custom", () => {
     expect(resolveSelectValue(OTHER, "   ")).toBe("");
+  });
+});
+
+describe("composeScenePrompt", () => {
+  it("builds a full-body dressed scene and marks nude as NSFW", () => {
+    const dressed = composeScenePrompt({
+      framing: "full_body",
+      pose: "standing",
+      dressing: "casual",
+      setting: "studio",
+    });
+    expect(dressed.prompt).toContain("full body");
+    expect(dressed.prompt).toContain("casual");
+    expect(dressed.nsfw).toBe(false);
+
+    const nude = composeScenePrompt({
+      framing: "full_body",
+      pose: "standing",
+      dressing: "nude",
+      setting: "bedroom",
+    });
+    expect(nude.nsfw).toBe(true);
+    expect(nude.prompt).toContain("fully nude");
   });
 });
