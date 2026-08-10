@@ -76,6 +76,8 @@ class Influencer(BaseModel):
     avatar_path: str | None = None
     age_rating: str | None = None
     niche: str | None = None
+    # How identity is locked for generation: face_seed | base_portrait | none
+    face_lock: str | None = None
 
 
 class WardrobeCreate(BaseModel):

@@ -319,15 +319,35 @@ async def _resolve_avatar_path(influencer_id: int, looks_id: int) -> str | None:
                 return str(val)
     latest = await db.fetchone(
         """
-        SELECT output_thumbnail_path, output_path FROM generations
+        SELECT output_thumbnail_path, output_path, teaser_path FROM generations
         WHERE influencer_id = ? AND status = 'completed'
         ORDER BY id DESC LIMIT 1
         """,
         (influencer_id,),
     )
     if latest:
-        return str(latest.get("output_thumbnail_path") or latest.get("output_path") or "") or None
+        return (
+            str(
+                latest.get("output_thumbnail_path")
+                or latest.get("output_path")
+                or latest.get("teaser_path")
+                or ""
+            )
+            or None
+        )
     return None
+
+
+def _face_lock_from_looks(looks: dict[str, Any] | None) -> str:
+    if not looks:
+        return "none"
+    ref = looks.get("reference_image_path")
+    if ref and Path(str(ref)).is_file():
+        return "face_seed"
+    portrait = looks.get("base_portrait_path")
+    if portrait and Path(str(portrait)).is_file():
+        return "base_portrait"
+    return "none"
 
 
 def _influencer_from_row(
@@ -336,6 +356,7 @@ def _influencer_from_row(
     avatar_path: str | None = None,
     age_rating: str | None = None,
     niche: str | None = None,
+    face_lock: str | None = None,
 ) -> Influencer:
     return Influencer(
         id=r["id"],
@@ -347,6 +368,7 @@ def _influencer_from_row(
         avatar_path=avatar_path,
         age_rating=age_rating,
         niche=niche,
+        face_lock=face_lock or "none",
     )
 
 
@@ -361,12 +383,14 @@ async def list_influencers() -> list[Influencer]:
             "SELECT age_rating, niche FROM personalities WHERE id = ?",
             (r["personality_id"],),
         )
+        looks = await db.fetchone("SELECT * FROM looks WHERE id = ?", (r["looks_id"],))
         out.append(
             _influencer_from_row(
                 r,
                 avatar_path=avatar,
                 age_rating=(personality or {}).get("age_rating"),
                 niche=(personality or {}).get("niche"),
+                face_lock=_face_lock_from_looks(looks),
             )
         )
     return out
@@ -395,6 +419,7 @@ async def create_influencer(body: InfluencerCreate) -> Influencer:
         avatar_path=str(avatar) if avatar else None,
         age_rating=personality.get("age_rating"),
         niche=personality.get("niche"),
+        face_lock=_face_lock_from_looks(looks),
     )
 
 

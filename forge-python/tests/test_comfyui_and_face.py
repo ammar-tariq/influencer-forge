@@ -40,6 +40,52 @@ def test_inject_prompt_updates_nodes(tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert prompt["5"]["inputs"]["height"] == 768
 
 
+def test_stage_face_and_img2img_inject(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    comfy_root = tmp_path / "ComfyUI"
+    (comfy_root / "input").mkdir(parents=True)
+    monkeypatch.setattr("forge_python.comfyui_client.settings.comfyui_root", comfy_root)
+    face = tmp_path / "face.png"
+    Image.new("RGB", (200, 300), (90, 40, 40)).save(face)
+    client = ComfyUIClient()
+    name = client.stage_face_reference(face, generation_id=42, width=576, height=1024)
+    assert name == "iforge_face_42.png"
+    staged = comfy_root / "input" / name
+    assert staged.exists()
+    with Image.open(staged) as im:
+        assert im.size == (576, 1024)
+
+    bundle = {
+        "meta": {
+            "positive_node": "6",
+            "negative_node": "7",
+            "seed_node": "3",
+            "image_node": "10",
+            "checkpoint_node": "4",
+        },
+        "prompt": {
+            "3": {"class_type": "KSampler", "inputs": {"seed": 1, "denoise": 0.5}},
+            "4": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "x.safetensors"}},
+            "6": {"class_type": "CLIPTextEncode", "inputs": {"text": "x"}},
+            "7": {"class_type": "CLIPTextEncode", "inputs": {"text": "y"}},
+            "10": {"class_type": "LoadImage", "inputs": {"image": "old.png"}},
+        },
+    }
+    prompt = client.inject_prompt(
+        bundle,
+        positive="topless",
+        seed=7,
+        width=576,
+        height=1024,
+        image_filename=name,
+        denoise=0.82,
+        checkpoint_name="RealVisXL_V5.0_fp16.safetensors",
+    )
+    assert prompt["10"]["inputs"]["image"] == name
+    assert prompt["3"]["inputs"]["denoise"] == 0.82
+    assert prompt["4"]["inputs"]["ckpt_name"] == "RealVisXL_V5.0_fp16.safetensors"
+    assert "consistent face reference" not in prompt["6"]["inputs"]["text"]
+
+
 def test_face_embedding_stable(tmp_path: Path) -> None:
     img = tmp_path / "face.png"
     Image.new("RGB", (64, 64), (120, 40, 80)).save(img)

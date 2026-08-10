@@ -38,6 +38,8 @@ export interface Influencer {
   avatar_path?: string | null;
   age_rating?: string | null;
   niche?: string | null;
+  /** face_seed | base_portrait | none */
+  face_lock?: string | null;
 }
 
 export interface Generation {

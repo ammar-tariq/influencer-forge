@@ -8,6 +8,8 @@ from collections import deque
 
 from typing import TYPE_CHECKING
 
+from pathlib import Path
+
 from forge_python.comfyui_client import ComfyUIClient
 from forge_python.db import Database
 from forge_python.llm_manager import (
@@ -171,15 +173,23 @@ class QueueWorker:
             (expanded, negative, generation_id),
         )
         require_real = self._require_real.get(generation_id, False)
+        face_reference = None
+        if looks:
+            for key in ("reference_image_path", "base_portrait_path"):
+                candidate = looks.get(key)
+                if candidate and Path(str(candidate)).is_file():
+                    face_reference = str(candidate)
+                    break
         out, thumb, seed, model = await self.comfy.generate(
             generation_id=generation_id,
             prompt=expanded,
             aspect_ratio=row["aspect_ratio"],
             seed=row["seed"],
             workflow_type=row["workflow_type"],
-            face_reference=(looks or {}).get("reference_image_path"),
+            face_reference=face_reference,
             allow_stub=not require_real,
             negative=negative,
+            is_nsfw=is_nsfw,
         )
         await self.db.execute(
             """

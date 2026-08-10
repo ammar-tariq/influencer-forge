@@ -50,7 +50,12 @@ export function Dashboard() {
                 fallback="Portrait generating…"
               />
               <h3 className="text-xl">{inf.name}</h3>
-              <p className="muted text-sm">Influencer #{inf.id}</p>
+              <p className="muted text-sm">
+                Influencer #{inf.id}
+                {inf.face_lock && inf.face_lock !== "none"
+                  ? ` · face lock: ${inf.face_lock.replace("_", " ")}`
+                  : " · no face lock yet"}
+              </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Link className="btn inline-block" to="/generate">
                   Generate

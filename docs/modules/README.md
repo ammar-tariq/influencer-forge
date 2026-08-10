@@ -4,8 +4,8 @@
 |--------|------|-------|
 | Orchestrator API | `forge-python/src/forge_python/orchestrator.py` | FastAPI routes |
 | Database | `forge-python/src/forge_python/db.py` | Full schema from spec |
-| Queue + stub/Comfy | `queue_worker.py`, `stub_generator.py`, `comfyui_client.py` | Concurrency 1; Comfy prompt/history/view |
-| Face Seed | `face_seed.py` | Local fingerprint until InstantID |
+| Queue + stub/Comfy | `queue_worker.py`, `stub_generator.py`, `comfyui_client.py` | Concurrency 1; txt2img + img2img face lock |
+| Face Seed | `face_seed.py` + `image_img2img.json` | Fingerprint + img2img identity lock (InstantID later) |
 | Model bootstrap | `model_downloader.py` + `resources/bootstrap/models.json` | Resumable downloads when enabled |
 | Full reset | `reset.py` + `POST /api/system/reset` | Wipes app data; never touches hfModels/ComfyUI |
 | LLM expand | `llm_manager.py` | Template-first |

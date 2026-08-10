@@ -73,7 +73,8 @@ async def collect_readiness(comfy: ComfyUIClient | None = None) -> dict[str, Any
     comfy_installed = (settings.comfyui_root / "main.py").exists()
     checkpoints = find_checkpoints()
     healthy = await client.health() if settings.enable_comfyui or comfy_installed else False
-    wf_ok = workflow_ready()
+    wf_ok = workflow_ready("image_faceid.json")
+    img2img_ok = workflow_ready("image_img2img.json")
     checklist = [
         {
             "id": "comfyui_source",
@@ -107,6 +108,13 @@ async def collect_readiness(comfy: ComfyUIClient | None = None) -> dict[str, Any
             "ok": wf_ok,
             "detail": str(settings.workflows_dir / "image_faceid.json"),
             "fix": "Ensure workflow JSON includes a ComfyUI prompt graph.",
+        },
+        {
+            "id": "workflow_img2img",
+            "label": "Face-lock img2img workflow ready",
+            "ok": img2img_ok,
+            "detail": str(settings.workflows_dir / "image_img2img.json"),
+            "fix": "Ship image_img2img.json under src-tauri/resources/workflows/.",
         },
         {
             "id": "comfyui_healthy",

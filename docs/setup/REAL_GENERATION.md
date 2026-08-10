@@ -19,6 +19,16 @@
 - Generate page toggle **Require real ComfyUI output** sets `require_real: true` and fails the job instead of painting a fake PNG.
 - Set `IFORGE_ALLOW_STUB_FALLBACK=0` globally to force real-only.
 
+## Face consistency (img2img lock)
+
+When a look has a **Face Seed** upload or a **base portrait** (first SFW headshot), generation uses `image_img2img.json`:
+
+1. Reference image is resized into `ComfyUI/input/iforge_face_{id}.png`
+2. ComfyUI LoadImage → VAEEncode → KSampler (denoise ~0.72 SFW / ~0.82 NSFW)
+3. History `model_used` shows `sdxl-img2img`
+
+Upload a Face Seed in the Wizard for the strongest lock. Without either reference, gens stay plain txt2img (`sdxl`). InstantID/IP-Adapter remains a later upgrade.
+
 ## Explicit / NSFW generations
 
 For Adult or **18+** influencers:

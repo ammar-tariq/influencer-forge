@@ -37,6 +37,7 @@ npm run tauri dev
 3. Open the app Dashboard — the readiness checklist should turn green.
 
 4. Generate an image. History should show a real SDXL output (`model_used` ≠ `stub`).
+5. With a Face Seed or base portrait, later gens use img2img (`model_used` = `sdxl-img2img`) for face consistency.
 
 ## Face Seed note
 

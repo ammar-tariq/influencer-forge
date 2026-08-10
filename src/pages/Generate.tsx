@@ -232,7 +232,19 @@ export function Generate() {
               className="h-48 w-full rounded-xl object-cover"
               fallback={selected ? "No portrait yet" : "Select an influencer"}
             />
-            {selected && <p className="mt-2 text-sm">{selected.name}</p>}
+            {selected && (
+              <>
+                <p className="mt-2 text-sm">{selected.name}</p>
+                <p className="muted mt-1 text-xs">
+                  Face lock:{" "}
+                  {selected.face_lock === "face_seed"
+                    ? "Face Seed (img2img)"
+                    : selected.face_lock === "base_portrait"
+                      ? "Base portrait (img2img)"
+                      : "None — upload a Face Seed in Wizard or generate a SFW headshot first"}
+                </p>
+              </>
+            )}
           </div>
           <div className="panel">
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide muted">Result</h2>
