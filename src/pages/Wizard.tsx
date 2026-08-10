@@ -183,6 +183,7 @@ export function Wizard() {
         workflow_type: "image",
         is_nsfw: false,
         count: 4,
+        identity_explore: true,
       });
       return influencer;
     },

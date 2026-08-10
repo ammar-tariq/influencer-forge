@@ -110,12 +110,14 @@ export function InfluencerDetail() {
         workflow_type: "image",
         is_nsfw: false,
         count: 4,
+        identity_explore: true,
       }),
     onSuccess: invalidate,
   });
 
   const regenerate = useMutation({
-    mutationFn: (gid: number) => api.regenerate(gid),
+    mutationFn: ({ gid, explore }: { gid: number; explore?: boolean }) =>
+      api.regenerate(gid, explore != null ? { identity_explore: explore } : undefined),
     onSuccess: invalidate,
   });
 
@@ -362,7 +364,7 @@ export function InfluencerDetail() {
                       <button
                         className="btn secondary"
                         disabled={regenerate.isPending}
-                        onClick={() => regenerate.mutate(g.id)}
+                        onClick={() => regenerate.mutate({ gid: g.id, explore: true })}
                       >
                         Re-roll
                       </button>
@@ -525,7 +527,10 @@ export function InfluencerDetail() {
                   Use this face
                 </button>
               )}
-              <button className="btn secondary" onClick={() => regenerate.mutate(selected.id)}>
+              <button
+                className="btn secondary"
+                onClick={() => regenerate.mutate({ gid: selected.id, explore: false })}
+              >
                 Regenerate
               </button>
               <Link className="btn secondary" to="/edit-posts">

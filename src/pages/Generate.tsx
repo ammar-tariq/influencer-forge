@@ -11,10 +11,12 @@ import {
   ASPECT_RATIOS,
   DRESSINGS,
   FRAMINGS,
+  NUDE_DRESSING_VALUES,
   POSES,
   SETTINGS,
   WORKFLOW_TYPES,
   composeScenePrompt,
+  stripClothingFromNotes,
 } from "../constants/options";
 import { useQueue } from "../hooks/useQueue";
 import { useVault } from "../hooks/useVault";
@@ -65,7 +67,6 @@ export function Generate() {
   const wardrobeItem = (wardrobe.data ?? []).find((w) => w.id === wardrobeId);
 
   const scene = useMemo(() => {
-    // Wardrobe outfit always wins over dressing presets (stable; do not gate on nsfw).
     if (wardrobeItem) {
       return composeScenePrompt({
         framing,
@@ -76,6 +77,7 @@ export function Generate() {
         dressingOther: wardrobeItem.prompt_keywords,
         settingOther,
         notes,
+        wardrobeOwnsClothing: true,
       });
     }
     return composeScenePrompt({
@@ -104,15 +106,19 @@ export function Generate() {
     setWardrobeId("");
   }, [influencerId]);
 
-  // Keep dressing controls in sync with wardrobe so the UI doesn't show a stale preset.
+  // Wardrobe → Other/custom dressing; nude/topless dressing clears wardrobe.
   useEffect(() => {
     if (!wardrobeItem) return;
     setDressing("other");
     setDressingOther(wardrobeItem.prompt_keywords);
   }, [wardrobeItem?.id, wardrobeItem?.prompt_keywords]);
 
-  // NSFW defaults — never derive from scene.nsfw while wardrobe can change scene
-  // (that loop flipped wardrobe ↔ dressing prompts every render).
+  useEffect(() => {
+    if (NUDE_DRESSING_VALUES.has(dressing) && wardrobeId !== "") {
+      setWardrobeId("");
+    }
+  }, [dressing, wardrobeId]);
+
   useEffect(() => {
     if (!selected || nsfwBlocked(ageRating)) {
       setNsfw(false);
@@ -126,7 +132,7 @@ export function Generate() {
   useEffect(() => {
     if (!nsfwAllowed) return;
     if (wardrobeItem) {
-      if (/\b(nude|topless|naked|lingerie)\b/i.test(wardrobeItem.prompt_keywords)) {
+      if (/\b(lingerie|bikini)\b/i.test(wardrobeItem.prompt_keywords)) {
         setNsfw(true);
       }
       return;
@@ -134,6 +140,9 @@ export function Generate() {
     const dressOpt = DRESSINGS.find((d) => d.value === dressing);
     if (dressOpt?.nsfw) setNsfw(true);
   }, [nsfwAllowed, wardrobeItem?.id, wardrobeItem?.prompt_keywords, dressing]);
+
+  const clothingConflict =
+    Boolean(wardrobeItem) && NUDE_DRESSING_VALUES.has(dressing);
 
   const active = useQuery({
     queryKey: ["generation", activeId],
@@ -156,6 +165,7 @@ export function Generate() {
         wardrobe_item_id: wardrobeId === "" ? undefined : Number(wardrobeId),
         is_nsfw: nsfw || scene.nsfw,
         require_real: requireReal,
+        identity_explore: false,
       }),
     onSuccess: (gen) => {
       setActiveId(gen.id);
@@ -284,11 +294,17 @@ export function Generate() {
           </div>
 
           <div className="field">
-            <label>Wardrobe outfit (consistent clothing)</label>
+            <label>Wardrobe outfit (wins over dressing + clothing in notes)</label>
             <select
               value={wardrobeId}
               disabled={influencerId === ""}
-              onChange={(e) => setWardrobeId(e.target.value ? Number(e.target.value) : "")}
+              onChange={(e) => {
+                const next = e.target.value ? Number(e.target.value) : "";
+                setWardrobeId(next);
+                if (next !== "") {
+                  setDressing("other");
+                }
+              }}
             >
               <option value="">None — use dressing preset below</option>
               {(wardrobe.data ?? []).map((w) => (
@@ -311,11 +327,17 @@ export function Generate() {
           </div>
 
           <div className="field">
-            <label>Dressing {wardrobeItem ? "(from wardrobe)" : ""}</label>
+            <label>Dressing {wardrobeItem ? "(from wardrobe — Other/custom)" : ""}</label>
             <select
               value={dressing}
               disabled={Boolean(wardrobeItem)}
-              onChange={(e) => setDressing(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value;
+                setDressing(next);
+                if (NUDE_DRESSING_VALUES.has(next)) {
+                  setWardrobeId("");
+                }
+              }}
             >
               {DRESSINGS.map((d) => (
                 <option key={d.value} value={d.value}>
@@ -331,6 +353,11 @@ export function Generate() {
                 onChange={(e) => setDressingOther(e.target.value)}
                 placeholder="Describe clothing or nude state…"
               />
+            )}
+            {wardrobeItem && (
+              <p className="muted mt-2 rounded-xl bg-[var(--bg2)] p-2 text-xs">
+                {scene.clothingLine || wardrobeItem.prompt_keywords}
+              </p>
             )}
           </div>
 
@@ -359,14 +386,26 @@ export function Generate() {
               rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g. soft smile, wind in hair…"
+              placeholder={
+                wardrobeItem
+                  ? "Expression / lighting only — clothing words are ignored while wardrobe is on"
+                  : "e.g. soft smile, wind in hair…"
+              }
             />
+            {wardrobeItem && notes && stripClothingFromNotes(notes) !== notes.trim() && (
+              <p className="muted mt-1 text-xs">Clothing words in notes are ignored for this post.</p>
+            )}
           </div>
 
           <div className="field">
             <label>Prompt preview</label>
             <p className="rounded-xl bg-[var(--bg2)] p-3 text-sm">{scene.prompt || "—"}</p>
           </div>
+          {clothingConflict && (
+            <p className="text-sm text-[var(--danger)]">
+              Nude/topless cannot combine with a wardrobe outfit. Clear one of them.
+            </p>
+          )}
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="field">
@@ -416,7 +455,7 @@ export function Generate() {
           )}
           <button
             className="btn"
-            disabled={!influencerId || !scene.prompt || mutate.isPending}
+            disabled={!influencerId || !scene.prompt || mutate.isPending || clothingConflict}
             onClick={() => mutate.mutate()}
           >
             {mutate.isPending ? "Queueing…" : "Generate"}

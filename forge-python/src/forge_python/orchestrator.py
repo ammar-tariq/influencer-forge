@@ -28,6 +28,7 @@ from forge_python.llm_manager import (
     resolve_negative_prompt,
     smart_daily_suggestions,
 )
+from forge_python.prompt_layers import ClothingConflictError, resolve_prompt_layers
 from forge_python.model_downloader import ModelDownloader
 from forge_python.models import (
     BootstrapStatus,
@@ -765,13 +766,17 @@ async def _enqueue_generation(
     Pass ``seed=None`` to force a null seed (ComfyUI draws a new one). Omit to use ``body.seed``.
     """
     wardrobe_keywords = None
-    if body.wardrobe_item_id:
+    wardrobe_id = body.wardrobe_item_id
+    if wardrobe_id:
         item = await db.fetchone(
             "SELECT prompt_keywords FROM wardrobe_items WHERE id = ?",
-            (body.wardrobe_item_id,),
+            (wardrobe_id,),
         )
         if item:
             wardrobe_keywords = item["prompt_keywords"]
+        else:
+            wardrobe_id = None
+            wardrobe_keywords = None
     influencer = await db.fetchone("SELECT * FROM influencers WHERE id = ?", (body.influencer_id,))
     if not influencer:
         raise HTTPException(400, "Invalid influencer_id")
@@ -781,15 +786,24 @@ async def _enqueue_generation(
     )
     looks = await db.fetchone("SELECT * FROM looks WHERE id = ?", (influencer["looks_id"],))
     age_rating = (personality or {}).get("age_rating") or "Family"
-    # Toggle or explicit prompt language → NSFW path (clothing negatives + adult framing).
-    # Age rating alone does not force NSFW so studio headshots stay SFW.
-    is_nsfw = bool(body.is_nsfw or prompt_implies_nsfw(body.user_prompt))
+    try:
+        layers = resolve_prompt_layers(
+            body.user_prompt,
+            wardrobe_keywords=wardrobe_keywords,
+            is_nsfw_flag=body.is_nsfw,
+        )
+    except ClothingConflictError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    is_nsfw = layers.is_nsfw
     if is_nsfw and age_rating in ("Family", "Teen"):
         raise HTTPException(
             400,
             "Explicit / NSFW generation requires an Adult or 18+ age rating on the influencer.",
         )
-    face_locked = resolve_face_lock_path(looks) is not None
+    # Identity explore: selected traits only, no face-reference lock in the text stack.
+    # Create-post with a lock: hybrid looks (body kept; hair/eyes from reference).
+    has_face_ref = resolve_face_lock_path(looks) is not None
+    face_locked = has_face_ref and not body.identity_explore
     looks_prompt = build_looks_prompt(
         age=(looks or {}).get("age"),
         ethnicity=(looks or {}).get("ethnicity"),
@@ -804,24 +818,30 @@ async def _enqueue_generation(
         face_locked=face_locked,
     )
     expanded = expand_prompt(
-        body.user_prompt,
+        layers.scene,
         influencer_name=influencer["name"],
         looks_prompt=looks_prompt or (looks or {}).get("base_prompt") or "",
-        wardrobe_keywords=None if is_nsfw else wardrobe_keywords,
+        wardrobe_keywords=layers.wardrobe_keywords,
         system_prompt=(personality or {}).get("system_prompt"),
         is_nsfw=is_nsfw,
         face_locked=face_locked,
+        clothing_from_wardrobe=layers.clothing_from_wardrobe,
     )
-    negative = resolve_negative_prompt(is_nsfw=is_nsfw, user_prompt=body.user_prompt)
-    wardrobe_id = None if is_nsfw else body.wardrobe_item_id
+    negative = resolve_negative_prompt(
+        is_nsfw=is_nsfw,
+        user_prompt=layers.scene,
+        wardrobe_keywords=layers.wardrobe_keywords,
+        clothing_from_wardrobe=layers.clothing_from_wardrobe,
+    )
     use_seed: int | None = body.seed if seed is _SEED_FROM_BODY else seed  # type: ignore[assignment]
     cur = await db.execute(
         """
         INSERT INTO generations(
             influencer_id, user_prompt, expanded_prompt, negative_prompt,
             workflow_type, model_used, llm_used,
-            aspect_ratio, seed, steps, cfg_scale, is_nsfw, wardrobe_item_id, status
-        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+            aspect_ratio, seed, steps, cfg_scale, is_nsfw, wardrobe_item_id,
+            identity_explore, status
+        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
         """,
         (
             body.influencer_id,
@@ -836,7 +856,8 @@ async def _enqueue_generation(
             body.steps,
             body.cfg_scale,
             int(is_nsfw),
-            wardrobe_id,
+            wardrobe_id if layers.clothing_from_wardrobe else None,
+            int(body.identity_explore),
         ),
     )
     gid = cur.lastrowid
@@ -868,46 +889,50 @@ async def create_generation_batch(body: GenerationBatchCreate) -> GenerationBatc
         model_used=body.model_used,
         llm_used=body.llm_used,
         require_real=body.require_real,
+        identity_explore=body.identity_explore,
     )
     gens = [await _enqueue_generation(single, seed=None) for _ in range(body.count)]
     return GenerationBatchResponse(generations=gens)
 
 
 @app.post("/api/generations/{generation_id}/regenerate", response_model=Generation)
-async def regenerate(generation_id: int, require_real: bool = False) -> Generation:
+async def regenerate(
+    generation_id: int,
+    require_real: bool = False,
+    identity_explore: bool | None = None,
+) -> Generation:
     parent = await db.fetchone("SELECT * FROM generations WHERE id = ?", (generation_id,))
     if not parent:
         raise HTTPException(404, "Not found")
-    # Always draw a new seed — reusing the parent seed makes ComfyUI return the same image.
-    cur = await db.execute(
-        """
-        INSERT INTO generations(
-            influencer_id, parent_generation_id, user_prompt, expanded_prompt, negative_prompt,
-            workflow_type, model_used, llm_used, aspect_ratio, seed, steps, cfg_scale, is_nsfw,
-            wardrobe_item_id, status
-        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
-        """,
-        (
-            parent["influencer_id"],
-            parent["id"],
-            parent["user_prompt"],
-            parent["expanded_prompt"],
-            parent["negative_prompt"],
-            parent["workflow_type"],
-            parent["model_used"],
-            parent["llm_used"],
-            parent["aspect_ratio"],
-            None,
-            parent["steps"],
-            parent["cfg_scale"],
-            parent["is_nsfw"],
-            parent.get("wardrobe_item_id"),
-        ),
+    explore = (
+        bool(identity_explore)
+        if identity_explore is not None
+        else bool(parent.get("identity_explore"))
     )
-    gid = cur.lastrowid
-    assert gid is not None
-    await _require_queue().enqueue(int(gid), require_real=require_real)
-    row = await db.fetchone("SELECT * FROM generations WHERE id = ?", (gid,))
+    # Re-resolve via create path so wardrobe / explore rules stay consistent.
+    child = await _enqueue_generation(
+        GenerationCreate(
+            influencer_id=int(parent["influencer_id"]),
+            user_prompt=str(parent["user_prompt"]),
+            workflow_type=parent["workflow_type"],
+            aspect_ratio=parent["aspect_ratio"],
+            seed=None,
+            steps=int(parent["steps"] or 20),
+            cfg_scale=float(parent["cfg_scale"] or 7.0),
+            wardrobe_item_id=parent.get("wardrobe_item_id"),
+            is_nsfw=bool(parent["is_nsfw"]),
+            model_used=str(parent["model_used"] or "stub"),
+            llm_used=str(parent["llm_used"] or "template"),
+            require_real=require_real,
+            identity_explore=explore,
+        ),
+        seed=None,
+    )
+    await db.execute(
+        "UPDATE generations SET parent_generation_id = ? WHERE id = ?",
+        (parent["id"], child.id),
+    )
+    row = await db.fetchone("SELECT * FROM generations WHERE id = ?", (child.id,))
     assert row
     return Generation(**row)
 
@@ -930,15 +955,9 @@ async def replace_generation(generation_id: int, body: GenerationReplace) -> Gen
     )
     looks = await db.fetchone("SELECT * FROM looks WHERE id = ?", (influencer["looks_id"],))
     age_rating = (personality or {}).get("age_rating") or "Family"
-    is_nsfw = bool(
-        body.is_nsfw if body.is_nsfw is not None else row["is_nsfw"] or prompt_implies_nsfw(body.user_prompt)
-    )
-    if is_nsfw and age_rating in ("Family", "Teen"):
-        raise HTTPException(400, "Explicit / NSFW requires Adult or 18+ age rating")
-
     wardrobe_id = body.wardrobe_item_id if body.wardrobe_item_id is not None else row.get("wardrobe_item_id")
     wardrobe_keywords = None
-    if wardrobe_id and not is_nsfw:
+    if wardrobe_id:
         item = await db.fetchone(
             "SELECT prompt_keywords FROM wardrobe_items WHERE id = ?",
             (wardrobe_id,),
@@ -947,6 +966,18 @@ async def replace_generation(generation_id: int, body: GenerationReplace) -> Gen
             wardrobe_keywords = item["prompt_keywords"]
         else:
             wardrobe_id = None
+    nsfw_flag = bool(body.is_nsfw) if body.is_nsfw is not None else bool(row["is_nsfw"])
+    try:
+        layers = resolve_prompt_layers(
+            body.user_prompt,
+            wardrobe_keywords=wardrobe_keywords,
+            is_nsfw_flag=nsfw_flag,
+        )
+    except ClothingConflictError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    is_nsfw = layers.is_nsfw
+    if is_nsfw and age_rating in ("Family", "Teen"):
+        raise HTTPException(400, "Explicit / NSFW requires Adult or 18+ age rating")
 
     face_locked = resolve_face_lock_path(looks) is not None
     looks_prompt = build_looks_prompt(
@@ -963,15 +994,22 @@ async def replace_generation(generation_id: int, body: GenerationReplace) -> Gen
         face_locked=face_locked,
     )
     expanded = expand_prompt(
-        body.user_prompt,
+        layers.scene,
         influencer_name=influencer["name"],
         looks_prompt=looks_prompt or (looks or {}).get("base_prompt") or "",
-        wardrobe_keywords=None if is_nsfw else wardrobe_keywords,
+        wardrobe_keywords=layers.wardrobe_keywords,
         system_prompt=(personality or {}).get("system_prompt"),
         is_nsfw=is_nsfw,
         face_locked=face_locked,
+        clothing_from_wardrobe=layers.clothing_from_wardrobe,
     )
-    negative = resolve_negative_prompt(is_nsfw=is_nsfw, user_prompt=body.user_prompt)
+    negative = resolve_negative_prompt(
+        is_nsfw=is_nsfw,
+        user_prompt=layers.scene,
+        wardrobe_keywords=layers.wardrobe_keywords,
+        clothing_from_wardrobe=layers.clothing_from_wardrobe,
+    )
+    wardrobe_id = wardrobe_id if layers.clothing_from_wardrobe else None
     workflow_type = body.workflow_type or row["workflow_type"]
     aspect_ratio = body.aspect_ratio or row["aspect_ratio"]
 

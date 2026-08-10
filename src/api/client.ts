@@ -197,6 +197,7 @@ export const api = {
     wardrobe_item_id?: number;
     is_nsfw?: boolean;
     require_real?: boolean;
+    identity_explore?: boolean;
   }) =>
     request<Generation>("/api/generations", {
       method: "POST",
@@ -211,13 +212,19 @@ export const api = {
     is_nsfw?: boolean;
     require_real?: boolean;
     count?: number;
+    identity_explore?: boolean;
   }) =>
     request<{ generations: Generation[] }>("/api/generations/batch", {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  regenerate: (id: number) =>
-    request<Generation>(`/api/generations/${id}/regenerate`, { method: "POST" }),
+  regenerate: (id: number, opts?: { identity_explore?: boolean; require_real?: boolean }) => {
+    const q = new URLSearchParams();
+    if (opts?.identity_explore != null) q.set("identity_explore", String(opts.identity_explore));
+    if (opts?.require_real != null) q.set("require_real", String(opts.require_real));
+    const suffix = q.toString() ? `?${q}` : "";
+    return request<Generation>(`/api/generations/${id}/regenerate${suffix}`, { method: "POST" });
+  },
   replaceGeneration: (
     id: number,
     body: {

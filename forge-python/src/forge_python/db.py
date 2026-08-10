@@ -94,6 +94,7 @@ CREATE TABLE IF NOT EXISTS generations (
     vault_file_path TEXT,
     teaser_path TEXT,
     wardrobe_item_id INTEGER,
+    identity_explore BOOLEAN DEFAULT 0,
     status TEXT NOT NULL,
     error_message TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -168,6 +169,10 @@ class Database:
         cols = {row[1] for row in await cur.fetchall()}
         if "wardrobe_item_id" not in cols:
             await self.conn.execute("ALTER TABLE generations ADD COLUMN wardrobe_item_id INTEGER")
+        if "identity_explore" not in cols:
+            await self.conn.execute(
+                "ALTER TABLE generations ADD COLUMN identity_explore BOOLEAN DEFAULT 0"
+            )
 
     async def close(self) -> None:
         if self._conn is not None:

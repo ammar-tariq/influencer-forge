@@ -16,6 +16,7 @@ from forge_python.llm_manager import (
     resolve_face_lock_path,
     resolve_negative_prompt,
 )
+from forge_python.prompt_layers import ClothingConflictError, resolve_prompt_layers
 
 if TYPE_CHECKING:
     from forge_python.vault import VaultService
@@ -139,9 +140,35 @@ class QueueWorker:
                 "SELECT * FROM personalities WHERE id = ?",
                 (influencer["personality_id"],),
             )
-        is_nsfw = bool(row.get("is_nsfw"))
-        face_reference = resolve_face_lock_path(looks)
+        identity_explore = bool(row.get("identity_explore"))
+        face_reference = None if identity_explore else resolve_face_lock_path(looks)
         face_locked = face_reference is not None
+        wardrobe_keywords = None
+        wardrobe_id = row.get("wardrobe_item_id")
+        if wardrobe_id:
+            item = await self.db.fetchone(
+                "SELECT prompt_keywords FROM wardrobe_items WHERE id = ?",
+                (wardrobe_id,),
+            )
+            if item:
+                wardrobe_keywords = item["prompt_keywords"]
+        try:
+            layers = resolve_prompt_layers(
+                str(row["user_prompt"]),
+                wardrobe_keywords=wardrobe_keywords,
+                is_nsfw_flag=bool(row.get("is_nsfw")),
+            )
+        except ClothingConflictError as exc:
+            await self.db.execute(
+                """
+                UPDATE generations
+                SET status = 'failed', error_message = ?, completed_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (str(exc), generation_id),
+            )
+            return
+        is_nsfw = layers.is_nsfw
         body = body_from_json((looks or {}).get("body_json"))
         looks_prompt = build_looks_prompt(
             age=(looks or {}).get("age"),
@@ -155,37 +182,30 @@ class QueueWorker:
             body=body,
             for_nsfw=is_nsfw,
             face_locked=face_locked,
-        ) or (looks or {}).get("base_prompt") or "adult person"
-        # Wardrobe fights nude/explicit scenes — only apply when SFW.
-        wardrobe_keywords = None
-        wardrobe_id = row.get("wardrobe_item_id")
-        if wardrobe_id and not is_nsfw:
-            item = await self.db.fetchone(
-                "SELECT prompt_keywords FROM wardrobe_items WHERE id = ?",
-                (wardrobe_id,),
-            )
-            if item:
-                wardrobe_keywords = item["prompt_keywords"]
+        ) or (looks or {}).get("base_prompt") or "person"
         expanded = expand_prompt(
-            row["user_prompt"],
+            layers.scene,
             influencer_name=(influencer or {}).get("name") or "Influencer",
             looks_prompt=str(looks_prompt),
-            wardrobe_keywords=wardrobe_keywords,
+            wardrobe_keywords=layers.wardrobe_keywords,
             system_prompt=(personality or {}).get("system_prompt"),
             is_nsfw=is_nsfw,
             face_locked=face_locked,
+            clothing_from_wardrobe=layers.clothing_from_wardrobe,
         )
         negative = resolve_negative_prompt(
             is_nsfw=is_nsfw,
-            user_prompt=row["user_prompt"],
+            user_prompt=layers.scene,
+            wardrobe_keywords=layers.wardrobe_keywords,
+            clothing_from_wardrobe=layers.clothing_from_wardrobe,
         )
         await self.db.execute(
             """
             UPDATE generations
-            SET expanded_prompt = ?, negative_prompt = ?
+            SET expanded_prompt = ?, negative_prompt = ?, is_nsfw = ?
             WHERE id = ?
             """,
-            (expanded, negative, generation_id),
+            (expanded, negative, int(is_nsfw), generation_id),
         )
         require_real = self._require_real.get(generation_id, False)
         out, thumb, seed, model = await self.comfy.generate(

@@ -156,6 +156,8 @@ class GenerationCreate(BaseModel):
     llm_used: str = "template"
     # When true, fail the job instead of writing a Pillow placeholder.
     require_real: bool = False
+    # Face-setup / wizard: explore a new face (no FaceID reference). Create-post: false.
+    identity_explore: bool = False
 
 
 class GenerationBatchCreate(GenerationCreate):
@@ -185,6 +187,7 @@ class Generation(BaseModel):
     vault_file_path: str | None = None
     teaser_path: str | None = None
     wardrobe_item_id: int | None = None
+    identity_explore: bool = False
     status: str
     error_message: str | None = None
     created_at: str | None = None

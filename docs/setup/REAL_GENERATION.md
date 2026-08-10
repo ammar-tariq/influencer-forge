@@ -27,8 +27,23 @@
 4. **Edit** personality/looks on the profile anytime (`PATCH` APIs). Changing hair/eyes/ethnicity while locked shows a “re-lock face” banner (lock is not auto-cleared).
 5. **Influencers** (sidebar) lists everyone; open a card for personality/looks, all their posts, Create post, or Archive.
 6. **Library** (`/history`) filters with `?influencer={id}` — also linked from each profile (“All posts” / “Their posts”).
-7. **Create post** defaults to **full body** and offers Pose / Dressing / Setting presets (including nude). You can still add free notes.
+7. **Create post** defaults to **full body** and offers Pose / Dressing / Setting presets (including nude). You can still add free notes. Wardrobe (if assigned) is the sole clothing source; dressing presets apply only when no wardrobe is selected. Nude/topless and wardrobe cannot be combined.
 8. Progress for the active job shows in the right-hand Progress panel.
+
+## Prompt override contract
+
+Clothing and identity are resolved on the orchestrator (`prompt_layers.resolve_prompt_layers`) before LLM expand / ComfyUI:
+
+| Priority | Clothing source |
+|----------|-----------------|
+| 1 | **Wardrobe** keywords (exclusive) — notes clothing words are stripped |
+| 2 | **Dressing** preset (when no wardrobe) |
+| 3 | Custom notes (vibe / expression / lighting only when wardrobe is set) |
+
+- Wardrobe + nude/topless dressing is rejected (`400` / UI clears the other).
+- NSFW path no longer injects blanket `nude` when resolved clothing is a wardrobe or named outfit.
+- **Identity explore** (`identity_explore: true` on create/batch/regenerate during face setup): no FaceID / img2img reference so each shot can be a new face; selected looks traits stay in the prompt.
+- **Create post** (after face lock): FaceID/img2img on; hybrid looks (age/gender/ethnicity/nationality/body kept; hair/eyes omitted when a face ref is active); prompt varies pose, clothing, setting, framing, non-clothing notes.
 
 ## Face consistency (FaceID → img2img)
 

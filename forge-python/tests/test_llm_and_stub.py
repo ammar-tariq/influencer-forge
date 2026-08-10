@@ -27,7 +27,7 @@ def test_build_prompts() -> None:
         gender="Female",
         body={"height": "Tall", "breast_size": "Medium", "butt_size": "Round / medium"},
     )
-    assert "28-year-old adult woman" in looks
+    assert "28-year-old woman" in looks
     assert "Chinese nationality" in looks
     assert "breast size: Medium" in looks
     expanded = expand_prompt(

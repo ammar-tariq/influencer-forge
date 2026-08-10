@@ -346,6 +346,24 @@ export function splitSelectValue(
   return { value: OTHER, other: trimmed };
 }
 
+/** Dressing values that cannot combine with a wardrobe outfit. */
+export const NUDE_DRESSING_VALUES = new Set(["nude", "topless"]);
+
+/** Strip clothing / nude language from free-form notes when wardrobe owns the outfit. */
+export function stripClothingFromNotes(text: string): string {
+  if (!text.trim()) return "";
+  const patterns = [
+    /\bwearing\b[^,]{0,48}/gi,
+    /\bdressed in\b[^,]{0,48}/gi,
+    /\b(outfit|clothes?|clothing|dress(?:es)?|skirt|jeans|pants|trousers|shorts|shirt|blouse|hoodie|sweater|jacket|coat|top|gown|suit|uniform|athleisure|streetwear|bikini|swimsuit|swimwear|lingerie|bra|panties|underwear|thong)\b/gi,
+    /\b(nude|naked|topless|bottomless|undressed|fully nude|no clothes|without clothes|bare breasts|bare chest)\b/gi,
+  ];
+  let cleaned = text;
+  for (const re of patterns) cleaned = cleaned.replace(re, " ");
+  cleaned = cleaned.replace(/\s+/g, " ").replace(/\s*,\s*,+/g, ", ").trim().replace(/^,|,$/g, "");
+  return cleaned.trim();
+}
+
 export function composeScenePrompt(input: {
   framing: string;
   pose: string;
@@ -355,7 +373,9 @@ export function composeScenePrompt(input: {
   dressingOther?: string;
   settingOther?: string;
   notes?: string;
-}): { prompt: string; nsfw: boolean } {
+  /** When true, dressingOther is wardrobe keywords; notes clothing is stripped. */
+  wardrobeOwnsClothing?: boolean;
+}): { prompt: string; nsfw: boolean; clothingLine: string } {
   const framing = FRAMINGS.find((f) => f.value === input.framing)?.prompt ?? FRAMINGS[0].prompt;
   const poseOpt = POSES.find((p) => p.value === input.pose);
   const dressOpt = DRESSINGS.find((d) => d.value === input.dressing);
@@ -363,15 +383,22 @@ export function composeScenePrompt(input: {
 
   const pose =
     input.pose === "other" ? (input.poseOther || "").trim() : (poseOpt?.prompt ?? "");
-  const dressing =
-    input.dressing === "other" ? (input.dressingOther || "").trim() : (dressOpt?.prompt ?? "");
+  const clothingLine = input.wardrobeOwnsClothing
+    ? (input.dressingOther || "").trim()
+    : input.dressing === "other"
+      ? (input.dressingOther || "").trim()
+      : (dressOpt?.prompt ?? "");
   const setting =
     input.setting === "other" ? (input.settingOther || "").trim() : (setOpt?.prompt ?? "");
+  const notes = input.wardrobeOwnsClothing
+    ? stripClothingFromNotes(input.notes || "")
+    : (input.notes || "").trim();
 
-  const parts = [framing, pose, dressing, setting, (input.notes || "").trim()].filter(Boolean);
+  const parts = [framing, pose, clothingLine, setting, notes].filter(Boolean);
   const prompt = parts.join(", ");
-  const nsfw =
-    Boolean(dressOpt?.nsfw) ||
-    /\b(nude|topless|naked|lingerie)\b/i.test(`${dressing} ${input.notes || ""}`);
-  return { prompt, nsfw };
+  const nsfw = input.wardrobeOwnsClothing
+    ? /\b(lingerie|bikini|nude|topless|naked)\b/i.test(clothingLine)
+    : Boolean(dressOpt?.nsfw) ||
+      /\b(nude|topless|naked|lingerie)\b/i.test(`${clothingLine} ${notes}`);
+  return { prompt, nsfw, clothingLine };
 }

@@ -158,8 +158,12 @@ def build_looks_prompt(
     if nationality and str(nationality).strip():
         nat = str(nationality).strip()
         nationality_token = f"{nat} nationality" if "nationality" not in nat.lower() else nat
+    if age is not None:
+        age_token = f"{age}-year-old {person}"
+    else:
+        age_token = person
     parts: list[str | None] = [
-        f"{age}-year-old adult {person}" if age else f"adult {person}",
+        age_token,
         nationality_token,
         ethnicity,
     ]
@@ -239,35 +243,52 @@ def expand_prompt(
     provider: str = "template",
     is_nsfw: bool = False,
     face_locked: bool = False,
+    clothing_from_wardrobe: bool = False,
 ) -> str:
     """Expand a short user / preset prompt into a richer generation prompt.
 
     Scene/framing/pose should already be in user_prompt from the UI presets.
     When face_locked, lead with identity tokens and keep the prompt shorter so
     img2img does not drift hair/face or go overcooked/graphic.
+
+    Clothing: wardrobe keywords (if any) are the sole outfit source — never inject
+    blanket ``nude`` when wardrobe or a revealing outfit is already specified.
     """
     _ = provider, system_prompt
     scene = _compact_scene(user_prompt.strip() or "full body standing pose, studio lighting")
-    identity = f"{_IDENTITY_LOCK}, {influencer_name}, {looks_prompt}" if face_locked else f"{influencer_name}, {looks_prompt}"
+    identity = (
+        f"{_IDENTITY_LOCK}, {influencer_name}, {looks_prompt}"
+        if face_locked
+        else f"{influencer_name}, {looks_prompt}"
+    )
     quality = "photorealistic photograph, natural skin texture, sharp focus"
 
-    if is_nsfw:
-        outfit = prompt_requests_revealing_outfit(scene)
-        wants_nude = prompt_requests_full_nude(scene)
-        extra = ""
-        if not outfit and not wants_nude:
-            extra = "nude, bare skin, "
-        elif outfit and not wants_nude:
-            extra = "skin visible, "
-        # Identity first when locked — CLIP attends strongest to early tokens.
-        if face_locked:
-            return f"{identity}, {scene}, {extra}{quality}"
-        return f"{scene}, {extra}{identity}, {quality}"
+    from_wardrobe = bool(clothing_from_wardrobe or (wardrobe_keywords and wardrobe_keywords.strip()))
+    clothing_src = wardrobe_keywords if from_wardrobe and wardrobe_keywords else scene
+    outfit = prompt_requests_revealing_outfit(clothing_src) or (
+        bool(wardrobe_keywords) and prompt_requests_revealing_outfit(wardrobe_keywords)
+    )
+    wants_nude = (not from_wardrobe) and prompt_requests_full_nude(clothing_src)
 
-    wardrobe = f", wearing {wardrobe_keywords}" if wardrobe_keywords else ""
+    wardrobe_bit = ""
+    if from_wardrobe and wardrobe_keywords:
+        wardrobe_bit = f", wearing {wardrobe_keywords.strip()}"
+
+    extra = ""
+    if is_nsfw:
+        if from_wardrobe or outfit:
+            # Wardrobe / lingerie / bikini — do not override with nude.
+            if outfit and not wants_nude:
+                extra = "skin visible, "
+        elif wants_nude:
+            extra = "nude, bare skin, "
+        else:
+            # Explicit NSFW toggle without outfit language.
+            extra = "nude, bare skin, "
+
     if face_locked:
-        return f"{identity}, {scene}{wardrobe}, {quality}"
-    return f"{scene}, {identity}{wardrobe}, {quality}"
+        return f"{identity}, {scene}{wardrobe_bit}, {extra}{quality}".replace(", ,", ",")
+    return f"{scene}{wardrobe_bit}, {identity}, {extra}{quality}".replace(", ,", ",")
 
 
 def resolve_negative_prompt(
@@ -275,13 +296,22 @@ def resolve_negative_prompt(
     is_nsfw: bool,
     custom: str | None = None,
     user_prompt: str | None = None,
+    wardrobe_keywords: str | None = None,
+    clothing_from_wardrobe: bool = False,
 ) -> str:
     if custom and custom.strip():
         return custom.strip()
     if not is_nsfw:
         return SFW_NEGATIVE
-    scene = user_prompt or ""
-    if prompt_requests_revealing_outfit(scene) and not prompt_requests_full_nude(scene):
+    from_wardrobe = bool(clothing_from_wardrobe or (wardrobe_keywords and wardrobe_keywords.strip()))
+    clothing_src = (
+        wardrobe_keywords
+        if from_wardrobe and wardrobe_keywords
+        else (user_prompt or "")
+    )
+    if from_wardrobe or (
+        prompt_requests_revealing_outfit(clothing_src) and not prompt_requests_full_nude(clothing_src)
+    ):
         return NSFW_OUTFIT_NEGATIVE
     return NSFW_NUDE_NEGATIVE
 

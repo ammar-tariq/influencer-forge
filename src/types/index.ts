@@ -71,6 +71,7 @@ export interface Generation {
   teaser_path?: string | null;
   vault_file_path?: string | null;
   wardrobe_item_id?: number | null;
+  identity_explore?: boolean;
   error_message?: string | null;
   created_at?: string | null;
   completed_at?: string | null;
