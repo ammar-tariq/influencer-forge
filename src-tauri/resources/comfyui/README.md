@@ -65,13 +65,16 @@ InsightFace `buffalo_l` models are pulled by the IPAdapter InsightFace loader on
 cd ComfyUI/custom_nodes
 git clone https://github.com/Kosinkadink/ComfyUI-AnimateDiff-Evolved.git
 git clone https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git
+# VHS needs ffmpeg to write mp4 (install into ComfyUI venv and/or PATH):
+uv pip install --python ../.venv/bin/python imageio-ffmpeg
+# macOS alternative: brew install ffmpeg
 ```
 
 Place a motion module, e.g. `mm_sdxl_v10_beta.safetensors`, under:
 
 `ComfyUI/models/animatediff_models/`
 
-(or the Evolved `models/` folder). Generate with type **Video** in the app. Outputs are `.mp4` when Video Helper Suite is available; otherwise the job falls back to stub/still. Readiness item `animatediff` tracks this.
+(or the Evolved `models/` folder). Restart ComfyUI after installing ffmpeg. Generate with type **Video** in the app. Outputs are `.mp4` when Video Helper Suite + ffmpeg encode successfully; without ffmpeg the job fails with a clear encode error (or stub if stub fallback is on). Readiness item `animatediff` tracks motion modules/nodes.
 
 ## Apple Silicon / macOS notes
 

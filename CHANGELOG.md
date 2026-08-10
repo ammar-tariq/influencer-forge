@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Video playback: require real `.mp4` (don’t force `<video>` on stub PNGs); serve `/media` with `video/mp4`; clear error when VHS lacks ffmpeg.
 - AnimateDiff Gen2 video workflow: FaceID on checkpoint `MODEL`, then `ADE_UseEvolvedSampling` (fixes M_MODELS vs MODEL 400).
 - Under-18 looks prompts: girl/boy phrasing, keep selected height, drop adult breast/hip/butt tokens, age-accurate proportion cues + negatives.
 - FaceID / AnimateDiff workflows: set InsightFace `model_name` to `buffalo_l` (ComfyUI 400: required input missing).

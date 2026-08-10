@@ -1319,7 +1319,18 @@ async def serve_media(subdir: str, filename: str) -> FileResponse:
     root = settings.media_dir.resolve()
     if not str(path).startswith(str(root)) or not path.is_file():
         raise HTTPException(404, "File not found")
-    return FileResponse(path, headers=_NO_STORE)
+    suffix = path.suffix.lower()
+    media_type = {
+        ".mp4": "video/mp4",
+        ".webm": "video/webm",
+        ".mov": "video/quicktime",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+    }.get(suffix)
+    return FileResponse(path, media_type=media_type, headers=_NO_STORE)
 
 
 def main() -> None:

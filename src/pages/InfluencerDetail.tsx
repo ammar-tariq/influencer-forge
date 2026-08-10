@@ -515,6 +515,7 @@ export function InfluencerDetail() {
               : detailSrc
             : null
         }
+        isVideo={Boolean(selected?.output_path?.match(/\.(mp4|webm|mov)$/i))}
         placeholder={selected?.status ?? "No image"}
         hasPrev={hasPrev}
         hasNext={hasNext}
