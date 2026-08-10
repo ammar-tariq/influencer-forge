@@ -46,6 +46,8 @@ npm run tauri dev
 ```bash
 cd ComfyUI/custom_nodes
 git clone https://github.com/cubiq/ComfyUI_IPAdapter_plus.git
+# FaceID loader needs these in the ComfyUI venv (not the forge-python venv):
+uv pip install --python ../.venv/bin/python insightface onnxruntime opencv-python-headless
 ```
 
 Place weights (not in git):
@@ -55,7 +57,7 @@ Place weights (not in git):
 | `ip-adapter-faceid-plusv2_sdxl.bin` | `ComfyUI/models/ipadapter/` |
 | `CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors` | `ComfyUI/models/clip_vision/` |
 
-InsightFace `buffalo_l` models are pulled by the IPAdapter InsightFace loader on first use (`model_name: buffalo_l`, CPU provider is fine on Apple Silicon). Restart ComfyUI after installing the custom node. Readiness item `ipadapter_faceid` turns green when node + weights are present.
+InsightFace `buffalo_l` models are pulled by the IPAdapter InsightFace loader on first use (`model_name: buffalo_l`, CPU provider is fine on Apple Silicon). Restart ComfyUI after installing the custom node + Python deps. Readiness item `ipadapter_faceid` turns green when node + weights are present.
 
 ## AnimateDiff video (optional)
 
