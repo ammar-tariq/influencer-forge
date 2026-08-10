@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, mediaUrl, vaultRevealUrl } from "../api/client";
+import { GenerationCard } from "../components/common/GenerationCard";
 import { ImageLightbox } from "../components/common/ImageLightbox";
-import { MediaImage } from "../components/common/MediaImage";
+import { StatusBadge } from "../components/common/StatusBadge";
 import type { Generation } from "../types";
 
 export function History() {
@@ -137,20 +138,12 @@ export function History() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {items.map((g) => (
-          <button key={g.id} className="panel text-left" onClick={() => setSelected(g)}>
-            <MediaImage
-              path={cardPath(g)}
-              alt=""
-              className="mb-3 h-40 w-full rounded-xl object-cover"
-              fallback={g.status}
-            />
-            <div className="font-semibold">
-              #{g.id} · {g.status}
-              {g.is_vaulted ? " · In vault" : ""}
-              {g.is_nsfw && !g.is_vaulted ? " · NSFW" : ""}
-            </div>
-            <p className="muted mt-1 line-clamp-2 text-sm">{g.user_prompt}</p>
-          </button>
+          <GenerationCard
+            key={g.id}
+            generation={g}
+            imagePath={cardPath(g)}
+            onClick={() => setSelected(g)}
+          />
         ))}
       </div>
 
@@ -159,9 +152,7 @@ export function History() {
         onClose={() => setSelected(null)}
         title={selected ? `Generation #${selected.id}` : ""}
         subtitle={
-          selected
-            ? `Seed ${selected.seed ?? "—"} · ${selected.model_used}${selected.is_vaulted ? " · vaulted" : ""}`
-            : undefined
+          selected ? `Seed ${selected.seed ?? "—"} · ${selected.model_used}` : undefined
         }
         imageSrc={
           selected && detailSrc
@@ -178,6 +169,11 @@ export function History() {
       >
         {selected && (
           <>
+            <StatusBadge
+              status={selected.status}
+              isVaulted={selected.is_vaulted}
+              isNsfw={selected.is_nsfw}
+            />
             {selected.is_vaulted && !unlocked && (
               <p className="muted text-sm">
                 Showing blurred teaser only.{" "}

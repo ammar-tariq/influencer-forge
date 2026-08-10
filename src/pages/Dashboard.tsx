@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import { MediaImage } from "../components/common/MediaImage";
 import { ReadinessChecklist } from "../components/common/ReadinessChecklist";
+import { FaceLockBadge } from "../components/common/StatusBadge";
+import { IconCheck, IconClock } from "../components/common/icons";
 import { useVault } from "../hooks/useVault";
 
 export function Dashboard() {
@@ -91,12 +93,14 @@ export function Dashboard() {
               key={s.title}
               className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[var(--bg2)] px-4 py-3"
             >
-              <div>
-                <div className="font-semibold">
-                  {s.done ? "✓ " : ""}
-                  {s.title}
+              <div className="flex min-w-0 items-start gap-3">
+                <span className={`status-badge ${s.done ? "tone-ok" : "tone-wait"}`} title={s.done ? "Done" : "Todo"}>
+                  {s.done ? <IconCheck size={13} /> : <IconClock size={13} />}
+                </span>
+                <div className="min-w-0">
+                  <div className="font-semibold">{s.title.replace(/^\d+\.\s*/, "")}</div>
+                  <p className="muted text-sm">{s.detail}</p>
                 </div>
-                <p className="muted text-sm">{s.detail}</p>
               </div>
               {!s.done && (
                 <Link className="btn secondary" to={s.to}>
@@ -145,13 +149,13 @@ export function Dashboard() {
                 className="mb-3 h-56 w-full rounded-xl object-cover"
                 fallback="Portrait generating…"
               />
-              <h3 className="text-xl">{inf.name}</h3>
-              <p className="muted text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-xl">{inf.name}</h3>
+                <FaceLockBadge faceLock={inf.face_lock} />
+              </div>
+              <p className="muted mt-1 text-sm">
                 #{inf.id}
                 {inf.age_rating ? ` · ${inf.age_rating}` : ""}
-                {inf.face_lock && inf.face_lock !== "none"
-                  ? ` · face lock: ${inf.face_lock.replace("_", " ")}`
-                  : " · no face lock yet"}
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Link className="btn inline-block" to={`/influencers/${inf.id}`}>

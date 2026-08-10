@@ -2,8 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, mediaUrl, vaultRevealUrl } from "../api/client";
+import { GenerationCard } from "../components/common/GenerationCard";
+import { FaceLockBadge, StatusBadge } from "../components/common/StatusBadge";
 import { ImageLightbox } from "../components/common/ImageLightbox";
 import { MediaImage } from "../components/common/MediaImage";
+import { IconCheck } from "../components/common/icons";
 import type { Generation } from "../types";
 
 const DEFAULT_IDENTITY_PROMPT =
@@ -195,14 +198,14 @@ export function InfluencerDetail() {
         />
         <div>
           <h1 className="text-3xl tracking-tight">{inf.name}</h1>
-          <p className="muted mt-2">
-            {inf.niche ?? "Creator"}
-            {inf.age_rating ? ` · ${inf.age_rating}` : ""}
-            {faceLocked
-              ? ` · face lock: ${String(inf.face_lock).replace("_", " ")}`
-              : " · face not locked yet"}
-            {` · ${inf.generation_count ?? items.length} posts`}
-          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="muted text-sm">
+              {inf.niche ?? "Creator"}
+              {inf.age_rating ? ` · ${inf.age_rating}` : ""}
+              {` · ${inf.generation_count ?? items.length} posts`}
+            </span>
+            <FaceLockBadge faceLock={inf.face_lock} />
+          </div>
           {personality?.bio && <p className="mt-3 text-sm">{personality.bio}</p>}
           <div className="mt-5 flex flex-wrap gap-2">
             <Link className="btn" to="/generate" state={{ createdId: inf.id, name: inf.name }}>
@@ -250,13 +253,12 @@ export function InfluencerDetail() {
           </p>
 
           {inFlight.length > 0 && (
-            <div className="mt-4 rounded-xl bg-[var(--bg2)] px-4 py-3 text-sm">
-              <div className="font-semibold">Generating identity shot…</div>
-              <p className="muted mt-1">
-                {inFlight.length} job{inFlight.length === 1 ? "" : "s"} in progress
-                {inFlight[0] ? ` (#${inFlight[0].id} · ${inFlight[0].status})` : ""}. This page
-                refreshes automatically.
-              </p>
+            <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl bg-[var(--bg2)] px-4 py-3 text-sm">
+              <StatusBadge status={inFlight[0]?.status ?? "processing"} />
+              <span className="muted">
+                Identity shot #{inFlight[0]?.id}
+                {inFlight.length > 1 ? ` · +${inFlight.length - 1} more` : ""}
+              </span>
             </div>
           )}
 
@@ -307,19 +309,21 @@ export function InfluencerDetail() {
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {sfwCompleted.slice(0, 9).map((g) => (
                   <div key={g.id} className="rounded-xl bg-[var(--bg2)] p-3">
-                    <MediaImage
-                      path={cardPath(g)}
-                      alt=""
-                      className="mb-2 h-44 w-full rounded-lg object-cover"
-                      fallback={g.status}
-                    />
+                    <button type="button" className="gen-card-media w-full" onClick={() => setSelected(g)}>
+                      <MediaImage
+                        path={cardPath(g)}
+                        alt=""
+                        className="mb-2 h-44 w-full rounded-lg object-cover"
+                        fallback="No preview"
+                      />
+                      <StatusBadge status={g.status} overlay />
+                    </button>
                     <p className="muted line-clamp-2 text-xs">{g.user_prompt}</p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       <button className="btn" disabled={lockFace.isPending} onClick={() => lockFace.mutate(g.id)}>
-                        Lock this face
-                      </button>
-                      <button className="btn secondary" onClick={() => setSelected(g)}>
-                        View
+                        <span className="inline-flex items-center gap-1">
+                          <IconCheck size={14} /> Lock face
+                        </span>
                       </button>
                       <button
                         className="btn secondary"
@@ -345,10 +349,10 @@ export function InfluencerDetail() {
       )}
 
       {faceLocked && (
-        <div className="panel">
-          <h2 className="text-lg">Face locked</h2>
-          <p className="muted mt-1 text-sm">
-            New posts use this reference for consistency. Unlock above if you want to choose again.
+        <div className="panel flex flex-wrap items-center gap-3">
+          <FaceLockBadge faceLock={inf.face_lock} />
+          <p className="muted text-sm">
+            New posts keep this look. Unlock above to pick another shot.
           </p>
         </div>
       )}
@@ -433,20 +437,12 @@ export function InfluencerDetail() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {items.map((g) => (
-              <button key={g.id} className="panel text-left" onClick={() => setSelected(g)}>
-                <MediaImage
-                  path={cardPath(g)}
-                  alt=""
-                  className="mb-3 h-40 w-full rounded-xl object-cover"
-                  fallback={g.status}
-                />
-                <div className="font-semibold">
-                  #{g.id} · {g.status}
-                  {g.is_vaulted ? " · In vault" : ""}
-                  {g.is_nsfw && !g.is_vaulted ? " · NSFW" : ""}
-                </div>
-                <p className="muted mt-1 line-clamp-2 text-sm">{g.user_prompt}</p>
-              </button>
+              <GenerationCard
+                key={g.id}
+                generation={g}
+                imagePath={cardPath(g)}
+                onClick={() => setSelected(g)}
+              />
             ))}
           </div>
         )}
@@ -472,6 +468,11 @@ export function InfluencerDetail() {
       >
         {selected && (
           <>
+            <StatusBadge
+              status={selected.status}
+              isVaulted={selected.is_vaulted}
+              isNsfw={selected.is_nsfw}
+            />
             <p className="line-clamp-4 text-sm">{selected.expanded_prompt}</p>
             <div className="flex flex-wrap gap-3">
               {!selected.is_nsfw && !selected.is_vaulted && selected.status === "completed" && (
@@ -480,7 +481,9 @@ export function InfluencerDetail() {
                   disabled={lockFace.isPending}
                   onClick={() => lockFace.mutate(selected.id)}
                 >
-                  Lock this face
+                  <span className="inline-flex items-center gap-1">
+                    <IconCheck size={14} /> Lock this face
+                  </span>
                 </button>
               )}
               <button className="btn secondary" onClick={() => regenerate.mutate(selected.id)}>

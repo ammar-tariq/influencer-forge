@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
 import { MediaImage } from "../components/common/MediaImage";
 import { ReadinessChecklist } from "../components/common/ReadinessChecklist";
+import { FaceLockBadge, StatusBadge } from "../components/common/StatusBadge";
+import { IconSpinner } from "../components/common/icons";
 import {
   ASPECT_RATIOS,
   DRESSINGS,
@@ -371,37 +373,32 @@ export function Generate() {
             {selected && (
               <>
                 <p className="mt-2 text-sm">{selected.name}</p>
-                <p className="muted mt-1 text-xs">
-                  Face lock:{" "}
-                  {selected.face_lock === "face_seed"
-                    ? "Face Seed"
-                    : selected.face_lock === "base_portrait"
-                      ? "Base portrait"
-                      : "None yet"}
-                </p>
+                <div className="mt-2">
+                  <FaceLockBadge faceLock={selected.face_lock} />
+                </div>
               </>
             )}
           </div>
           <div className="panel">
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide muted">Progress</h2>
-            {progressLabel ? (
+            {progressLabel && result ? (
               <div className="mb-3">
-                <div className="mb-2 flex justify-between text-xs muted">
-                  <span>{progressLabel}</span>
-                  <span>#{activeId}</span>
+                <div className="progress-status">
+                  <StatusBadge status={result.status} />
+                  <span className="muted text-xs">#{activeId}</span>
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-[var(--bg2)]">
                   <div
-                    className="h-full rounded-full bg-[var(--accent)] transition-all"
+                    className={`h-full rounded-full transition-all ${
+                      result.status === "failed" ? "bg-[var(--danger)]" : "bg-[var(--accent)]"
+                    }`}
                     style={{
                       width:
-                        result?.status === "completed"
+                        result.status === "completed" || result.status === "failed"
                           ? "100%"
-                          : result?.status === "processing"
+                          : result.status === "processing"
                             ? "66%"
-                            : result?.status === "failed"
-                              ? "100%"
-                              : "25%",
+                            : "25%",
                     }}
                   />
                 </div>
@@ -410,8 +407,9 @@ export function Generate() {
               <p className="muted mb-3 text-sm">Generate to see live progress here.</p>
             )}
             {result && result.status !== "completed" && result.status !== "failed" ? (
-              <div className="flex h-48 items-center justify-center rounded-xl bg-[var(--bg2)] text-sm muted">
-                {result.status}…
+              <div className="flex h-48 flex-col items-center justify-center gap-2 rounded-xl bg-[var(--bg2)]">
+                <IconSpinner size={28} className="spin text-[var(--accent-2)]" />
+                <StatusBadge status={result.status} />
               </div>
             ) : (
               <MediaImage

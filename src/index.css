@@ -100,6 +100,174 @@ a {
   color: var(--muted);
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.status-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.status-row-overlay {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
+  z-index: 1;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 999px;
+  padding: 0.22rem 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  border: 1px solid transparent;
+  backdrop-filter: blur(8px);
+}
+
+.status-row-overlay .status-badge {
+  padding: 0.35rem;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.status-row-overlay .status-badge span:not(.sr-only) {
+  display: none;
+}
+
+.tone-ok {
+  color: #062116;
+  background: color-mix(in srgb, var(--accent) 88%, white);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+.tone-busy {
+  color: #1a1400;
+  background: color-mix(in srgb, var(--accent-2) 85%, white);
+  border-color: color-mix(in srgb, var(--accent-2) 45%, transparent);
+}
+
+.tone-wait {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--bg2) 80%, transparent);
+  border-color: var(--line);
+}
+
+.tone-danger {
+  color: #2a0a0a;
+  background: color-mix(in srgb, var(--danger) 82%, white);
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+}
+
+.tone-warn {
+  color: #2a1800;
+  background: color-mix(in srgb, var(--accent-2) 75%, white);
+  border-color: color-mix(in srgb, var(--accent-2) 40%, transparent);
+}
+
+.tone-vault {
+  color: #e8f0ff;
+  background: color-mix(in srgb, #4a6fa5 70%, #0a0f0d);
+  border-color: color-mix(in srgb, #7aa0d4 40%, transparent);
+}
+
+.tone-muted {
+  color: var(--muted);
+  background: color-mix(in srgb, var(--bg2) 70%, transparent);
+  border-color: var(--line);
+}
+
+.gen-card {
+  position: relative;
+  padding: 0.85rem;
+}
+
+.gen-card-media {
+  position: relative;
+  margin-bottom: 0.65rem;
+}
+
+.gen-card-prompt {
+  color: var(--ink);
+  font-size: 0.9rem;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 2.4em;
+}
+
+.gen-card-id {
+  display: block;
+  margin-top: 0.4rem;
+  font-size: 0.7rem;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.nav-link svg {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.queue-chip {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.queue-chip-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.queue-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.progress-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+}
+
 .lightbox-root {
   position: fixed;
   inset: 0;

@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { api, mediaUrl, vaultRevealUrl } from "../api/client";
 import { ImageLightbox } from "../components/common/ImageLightbox";
 import { MediaImage } from "../components/common/MediaImage";
+import { StatusBadge } from "../components/common/StatusBadge";
+import { IconLock, IconShield } from "../components/common/icons";
 import { useVault } from "../hooks/useVault";
 import type { VaultedGeneration } from "../types";
 
@@ -54,10 +56,21 @@ export function Vault() {
       </header>
 
       <div className="panel">
-        <p className="text-sm">
-          Configured: {configured ? "yes" : "no"} · Unlocked: {unlocked ? "yes" : "no"}
-          {configured && pending > 0 ? ` · ${pending} NSFW still in cleartext History` : ""}
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={`status-badge ${configured ? "tone-ok" : "tone-muted"}`}>
+            <IconShield size={13} />
+            <span>{configured ? "PIN set" : "No PIN"}</span>
+          </span>
+          <span className={`status-badge ${unlocked ? "tone-ok" : "tone-wait"}`}>
+            <IconLock size={13} />
+            <span>{unlocked ? "Unlocked" : "Locked"}</span>
+          </span>
+          {configured && pending > 0 && (
+            <span className="status-badge tone-warn" title="NSFW still in cleartext">
+              {pending} pending
+            </span>
+          )}
+        </div>
         <div className="field mt-4">
           <label>PIN (min 4 characters)</label>
           <input
@@ -121,15 +134,18 @@ export function Vault() {
       {configured && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {(vaulted.data ?? []).map((g) => (
-            <button key={g.id} className="panel text-left" onClick={() => setSelected(g)}>
-              <MediaImage
-                path={g.teaser_path}
-                alt=""
-                className="mb-3 h-40 w-full rounded-xl object-cover"
-                fallback="Teaser"
-              />
-              <div className="font-semibold">#{g.id} · vaulted</div>
-              <p className="muted mt-1 line-clamp-2 text-sm">{g.user_prompt}</p>
+            <button key={g.id} className="panel gen-card text-left" onClick={() => setSelected(g)}>
+              <div className="gen-card-media">
+                <MediaImage
+                  path={g.teaser_path}
+                  alt=""
+                  className="h-40 w-full rounded-xl object-cover"
+                  fallback="Teaser"
+                />
+                <StatusBadge status="completed" isVaulted overlay />
+              </div>
+              <p className="gen-card-prompt">{g.user_prompt}</p>
+              <span className="gen-card-id">#{g.id}</span>
             </button>
           ))}
           {!vaulted.data?.length && (
