@@ -857,7 +857,6 @@ async def _enqueue_generation(
         (influencer["personality_id"],),
     )
     looks = await db.fetchone("SELECT * FROM looks WHERE id = ?", (influencer["looks_id"],))
-    age_rating = (personality or {}).get("age_rating") or "Family"
     try:
         layers = resolve_prompt_layers(
             body.user_prompt,
@@ -1063,7 +1062,6 @@ async def replace_generation(generation_id: int, body: GenerationReplace) -> Gen
         (influencer["personality_id"],),
     )
     looks = await db.fetchone("SELECT * FROM looks WHERE id = ?", (influencer["looks_id"],))
-    age_rating = (personality or {}).get("age_rating") or "Family"
     wardrobe_id = body.wardrobe_item_id if body.wardrobe_item_id is not None else row.get("wardrobe_item_id")
     wardrobe_keywords = None
     if wardrobe_id:
