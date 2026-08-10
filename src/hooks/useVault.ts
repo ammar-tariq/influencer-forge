@@ -8,31 +8,26 @@ export function useVault() {
     queryFn: api.vaultStatus,
     refetchInterval: 5000,
   });
+  const bustVaultCaches = () => {
+    qc.invalidateQueries({ queryKey: ["vault-status"] });
+    qc.invalidateQueries({ queryKey: ["vault-generations"] });
+    qc.invalidateQueries({ queryKey: ["generations"] });
+  };
   const setup = useMutation({
     mutationFn: (pin: string) => api.vaultSetup(pin),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["vault-status"] }),
+    onSuccess: bustVaultCaches,
   });
   const unlock = useMutation({
     mutationFn: (pin: string) => api.vaultUnlock(pin),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["vault-status"] });
-      qc.invalidateQueries({ queryKey: ["vault-generations"] });
-    },
+    onSuccess: bustVaultCaches,
   });
   const lock = useMutation({
     mutationFn: () => api.vaultLock(),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["vault-status"] });
-      qc.invalidateQueries({ queryKey: ["vault-generations"] });
-    },
+    onSuccess: bustVaultCaches,
   });
   const vaultPending = useMutation({
     mutationFn: () => api.vaultPendingNsfw(),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["vault-status"] });
-      qc.invalidateQueries({ queryKey: ["vault-generations"] });
-      qc.invalidateQueries({ queryKey: ["generations"] });
-    },
+    onSuccess: bustVaultCaches,
   });
   return { status, setup, unlock, lock, vaultPending };
 }

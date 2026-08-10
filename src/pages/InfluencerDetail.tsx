@@ -46,6 +46,7 @@ export function InfluencerDetail() {
     enabled: Number.isFinite(influencerId) && influencerId > 0,
     refetchInterval: 2000,
   });
+  const vaultStatus = useQuery({ queryKey: ["vault-status"], queryFn: api.vaultStatus });
 
   const wardrobeAll = useQuery({ queryKey: ["wardrobe"], queryFn: api.listWardrobe });
   const wardrobeMine = useQuery({
@@ -54,7 +55,12 @@ export function InfluencerDetail() {
     enabled: Number.isFinite(influencerId) && influencerId > 0,
   });
 
-  const items = generations.data ?? [];
+  const browseUnlocked = Boolean(vaultStatus.data?.unlocked);
+  const items = useMemo(() => {
+    const all = generations.data ?? [];
+    if (browseUnlocked) return all;
+    return all.filter((g) => !g.is_vaulted);
+  }, [generations.data, browseUnlocked]);
   const inFlight = useMemo(() => items.filter(isInFlight), [items]);
   const sfwCompleted = useMemo(
     () =>

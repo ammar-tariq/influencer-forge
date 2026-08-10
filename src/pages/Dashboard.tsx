@@ -84,11 +84,8 @@ export function Dashboard() {
         </ul>
         {nsfwPendingVault > 0 && (
           <p className="mt-4 text-sm text-[var(--accent-2)]">
-            {nsfwPendingVault} NSFW file(s) waiting to encrypt —{" "}
-            <Link className="underline" to="/vault">
-              unlock vault
-            </Link>{" "}
-            and they auto-vault.
+            {nsfwPendingVault} NSFW file(s) waiting to encrypt — turn on{" "}
+            <strong>Privacy vault</strong> in the sidebar (PIN) and they auto-vault.
           </p>
         )}
       </div>

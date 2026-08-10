@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
+import { useSystemStats } from "../hooks/useSystemStats";
 
 function settingMap(items: { key: string; value: string }[] | undefined) {
   return Object.fromEntries((items ?? []).map((s) => [s.key, s.value]));
@@ -10,6 +11,14 @@ export function Settings() {
   const qc = useQueryClient();
   const settings = useQuery({ queryKey: ["settings"], queryFn: api.listSettings });
   const map = settingMap(settings.data);
+  const { data: stats } = useSystemStats();
+  const comfy = useQuery({
+    queryKey: ["comfy-status"],
+    queryFn: api.comfyStatus,
+    refetchInterval: 3000,
+  });
+  const pause = useMutation({ mutationFn: api.pauseQueue });
+  const resume = useMutation({ mutationFn: api.resumeQueue });
   const [confirmText, setConfirmText] = useState("");
   const [includeModels, setIncludeModels] = useState(false);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
@@ -36,11 +45,55 @@ export function Settings() {
   });
 
   return (
-    <div className="mx-auto max-w-xl space-y-6">
+    <div className="mx-auto max-w-2xl space-y-6">
       <header>
         <h1 className="text-3xl tracking-tight">Settings</h1>
         <p className="muted mt-1">Keys stay on this machine. No telemetry.</p>
       </header>
+
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-xl tracking-tight">System</h2>
+          <p className="muted text-sm">Live CPU/RAM, queue pressure, and ComfyUI health.</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="panel">
+            <div className="muted text-sm">CPU</div>
+            <div className="mt-2 text-3xl">{stats?.cpu_percent?.toFixed(0) ?? "—"}%</div>
+          </div>
+          <div className="panel">
+            <div className="muted text-sm">RAM</div>
+            <div className="mt-2 text-3xl">{stats?.ram_percent?.toFixed(0) ?? "—"}%</div>
+            <div className="muted mt-1 text-xs">
+              {stats ? `${stats.ram_used_gb}/${stats.ram_total_gb} GB` : ""}
+            </div>
+          </div>
+          <div className="panel">
+            <div className="muted text-sm">Queue</div>
+            <div className="mt-2 text-3xl">
+              {stats ? `${stats.queue_pending}/${stats.queue_processing}` : "—"}
+            </div>
+          </div>
+        </div>
+        <div className="panel">
+          <h3 className="text-lg">ComfyUI</h3>
+          <p className="muted mt-2 text-sm">
+            enabled={String(comfy.data?.enabled ?? false)} · healthy=
+            {String(comfy.data?.healthy ?? false)} · process=
+            {String(comfy.data?.process_running ?? false)}
+          </p>
+          <p className="muted mt-1 text-xs">{comfy.data?.url}</p>
+        </div>
+        <div className="panel flex gap-3">
+          <button type="button" className="btn secondary" onClick={() => pause.mutate()}>
+            Pause queue
+          </button>
+          <button type="button" className="btn" onClick={() => resume.mutate()}>
+            Resume queue
+          </button>
+        </div>
+      </section>
+
       <form
         className="panel"
         onSubmit={(e) => {

@@ -21,7 +21,7 @@
 
 ## Guided create + scene builder
 
-1. **Studio home** checklist links you through Create → Influencers → Generate → Vault.
+1. **Studio home** checklist links you through Create → Influencers → Generate. Use the sidebar **Privacy vault** switch for NSFW.
 2. **New influencer** is 3 steps: Personality → Face (gender) → Body (height, figure, skin, etc.). After create you land on that influencer’s **profile**.
 3. On the profile, **Face lock setup** shows identity-shot progress. Edit the prompt, re-roll, or upload a Face Seed, then **Lock this face**. Until locked, later gens won’t use img2img identity.
 4. **Edit** personality/looks on the profile anytime (`PATCH` APIs). Changing hair/eyes/ethnicity while locked shows a “re-lock face” banner (lock is not auto-cleared).
@@ -62,11 +62,11 @@ The pipeline then uses adult framing + clothing negatives. RealVisXL can still r
 
 ### Privacy Vault
 
-1. Open **Vault** → set a PIN (min 4 chars). Setup leaves the vault **unlocked**.
-2. With the vault unlocked, new NSFW jobs **auto-vault**: encrypt to `vault/{id}.bin`, write a blurred teaser, delete cleartext PNG/thumb.
-3. History shows teasers + “In vault” for vaulted rows. Full image: unlock → Vault gallery (or History when unlocked).
-4. If NSFW finished while locked, use **Vault pending NSFW** after unlock.
-5. **Lock** wipes the short-lived decrypt cache under `media/vault_cache/`.
+1. In the sidebar, turn on **Privacy vault** and set a PIN (min 4 chars). Setup leaves the vault **unlocked**.
+2. With the vault on, new NSFW jobs **auto-vault**: encrypt to `vault/{id}.bin`, write a blurred teaser, delete cleartext PNG/thumb.
+3. **Library** and influencer profiles show blur teasers for vaulted rows while the vault is on. Opening a vaulted post always asks for the PIN again.
+4. While the vault is off, vaulted NSFW posts are hidden. Turning it back on (PIN) encrypts any pending NSFW and shows teasers.
+5. Turning the switch **off** locks the vault and wipes the short-lived decrypt cache under `media/vault_cache/`.
 
 ## Viewing images in the app
 

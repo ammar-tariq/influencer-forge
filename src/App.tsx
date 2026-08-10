@@ -11,9 +11,7 @@ import { Influencers } from "./pages/Influencers";
 import { InfluencerDetail } from "./pages/InfluencerDetail";
 import { Wardrobe } from "./pages/Wardrobe";
 import { Scheduler } from "./pages/Scheduler";
-import { Vault } from "./pages/Vault";
 import { Settings } from "./pages/Settings";
-import { Monitor } from "./pages/Monitor";
 import { EditPosts } from "./pages/EditPosts";
 
 function Shell({ children }: { children: ReactNode }) {
@@ -49,9 +47,9 @@ export default function App() {
               <Route path="/history" element={<History />} />
               <Route path="/wardrobe" element={<Wardrobe />} />
               <Route path="/scheduler" element={<Scheduler />} />
-              <Route path="/vault" element={<Vault />} />
+              <Route path="/vault" element={<Navigate to="/" replace />} />
               <Route path="/settings" element={<Settings />} />
-              <Route path="/monitor" element={<Monitor />} />
+              <Route path="/monitor" element={<Navigate to="/settings" replace />} />
               <Route path="/post" element={<EditPosts />} />
               <Route path="/edit-posts" element={<EditPosts />} />
             </Routes>

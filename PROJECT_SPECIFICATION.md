@@ -276,12 +276,11 @@ influencer-forge/
 │ └── tauri.conf.json
 ├── src/ # React Frontend
 │ ├── components/
-│ │ ├── common/ # Sidebar, Header, QueueStatus
+│ │ ├── common/ # Sidebar, VaultToggle, PinPrompt, QueueStatus
 │ │ ├── wizard/ # PersonalityForm, LooksForm, FaceUploader
 │ │ ├── generation/ # GenerateForm, AspectRatioSelector
 │ │ ├── history/ # HistoryGallery, HistoryFilters
 │ │ ├── scheduler/ # ScheduleForm, ScheduleList
-│ │ ├── vault/ # VaultUnlock, VaultGallery
 │ │ ├── settings/ # ModelSettings, LLMProviderSelector
 │ │ ├── wardrobe/ # WardrobeGallery, WardrobeForm
 │ │ ├── system/ # SystemMonitor
@@ -293,10 +292,9 @@ influencer-forge/
 │ │ ├── Generate.tsx
 │ │ ├── History.tsx
 │ │ ├── Scheduler.tsx
-│ │ ├── Vault.tsx
 │ │ ├── Settings.tsx
 │ │ └── Wardrobe.tsx
-│ ├── hooks/ # useQueue, useSystemStats, useVault
+│ ├── hooks/ # useQueue, useSystemStats, useVault, useVaultReveal
 │ ├── api/ # client.ts
 │ ├── types/ # index.ts
 │ ├── App.tsx

@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- System monitor cards (CPU/RAM/queue, ComfyUI, pause/resume) live under Settings; `/monitor` redirects there.
+- Privacy vault is a sidebar switch (PIN on enable) instead of a full `/vault` page; vaulted NSFW hides when off and shows blur teasers in Library/profile when on.
 - Influencer cards open the profile on click; removed Open profile / Create post / Their posts button clusters and face-lock status badges.
 - Profile: Back control, Delete (hard-delete + media) instead of Archive; Unlock face / Library clutter removed; wardrobe assign section added.
 - Wardrobe is part of the create-post flow (assigned outfits inject consistent keywords); Edit photo replaced by Edit posts (replace generation in place).

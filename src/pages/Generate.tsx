@@ -65,8 +65,8 @@ export function Generate() {
   const wardrobeItem = (wardrobe.data ?? []).find((w) => w.id === wardrobeId);
 
   const scene = useMemo(() => {
-    // Wardrobe outfit replaces dressing presets so the same bikini/etc. stays consistent.
-    if (wardrobeItem && !nsfw) {
+    // Wardrobe outfit always wins over dressing presets (stable; do not gate on nsfw).
+    if (wardrobeItem) {
       return composeScenePrompt({
         framing,
         pose,
@@ -98,29 +98,42 @@ export function Generate() {
     settingOther,
     notes,
     wardrobeItem,
-    nsfw,
   ]);
 
   useEffect(() => {
     setWardrobeId("");
   }, [influencerId]);
 
+  // Keep dressing controls in sync with wardrobe so the UI doesn't show a stale preset.
   useEffect(() => {
-    if (!selected) {
+    if (!wardrobeItem) return;
+    setDressing("other");
+    setDressingOther(wardrobeItem.prompt_keywords);
+  }, [wardrobeItem?.id, wardrobeItem?.prompt_keywords]);
+
+  // NSFW defaults — never derive from scene.nsfw while wardrobe can change scene
+  // (that loop flipped wardrobe ↔ dressing prompts every render).
+  useEffect(() => {
+    if (!selected || nsfwBlocked(ageRating)) {
       setNsfw(false);
       return;
     }
-    if (nsfwBlocked(ageRating)) {
-      setNsfw(false);
-      return;
+    if (ageRating === "18+") {
+      setNsfw(true);
     }
-    // Follow dressing preset, but keep Adult/18+ free to toggle.
-    setNsfw(scene.nsfw || ageRating === "18+");
-  }, [selected?.id, ageRating, scene.nsfw]);
+  }, [selected?.id, ageRating]);
 
   useEffect(() => {
-    if (scene.nsfw && nsfwAllowed) setNsfw(true);
-  }, [scene.nsfw, nsfwAllowed]);
+    if (!nsfwAllowed) return;
+    if (wardrobeItem) {
+      if (/\b(nude|topless|naked|lingerie)\b/i.test(wardrobeItem.prompt_keywords)) {
+        setNsfw(true);
+      }
+      return;
+    }
+    const dressOpt = DRESSINGS.find((d) => d.value === dressing);
+    if (dressOpt?.nsfw) setNsfw(true);
+  }, [nsfwAllowed, wardrobeItem?.id, wardrobeItem?.prompt_keywords, dressing]);
 
   const active = useQuery({
     queryKey: ["generation", activeId],
@@ -140,7 +153,7 @@ export function Generate() {
         user_prompt: scene.prompt,
         aspect_ratio: aspect,
         workflow_type: workflow,
-        wardrobe_item_id: nsfw || wardrobeId === "" ? undefined : Number(wardrobeId),
+        wardrobe_item_id: wardrobeId === "" ? undefined : Number(wardrobeId),
         is_nsfw: nsfw || scene.nsfw,
         require_real: requireReal,
       }),
@@ -210,11 +223,8 @@ export function Generate() {
       {nsfw && !vaultStatus.data?.configured && (
         <div className="panel border-[var(--accent-2)]">
           <p className="text-sm">
-            Explicit outfit selected — set a{" "}
-            <Link className="underline" to="/vault">
-              Vault PIN
-            </Link>{" "}
-            so NSFW outputs can be encrypted.
+            Explicit outfit selected — turn on <strong>Privacy vault</strong> in the sidebar and set
+            a PIN so NSFW outputs encrypt automatically.
           </p>
         </div>
       )}
@@ -274,10 +284,10 @@ export function Generate() {
           </div>
 
           <div className="field">
-            <label>Wardrobe outfit (SFW — consistent clothing)</label>
+            <label>Wardrobe outfit (consistent clothing)</label>
             <select
               value={wardrobeId}
-              disabled={nsfw || scene.nsfw || influencerId === ""}
+              disabled={influencerId === ""}
               onChange={(e) => setWardrobeId(e.target.value ? Number(e.target.value) : "")}
             >
               <option value="">None — use dressing preset below</option>
@@ -301,10 +311,10 @@ export function Generate() {
           </div>
 
           <div className="field">
-            <label>Dressing {wardrobeItem && !nsfw ? "(overridden by wardrobe)" : ""}</label>
+            <label>Dressing {wardrobeItem ? "(from wardrobe)" : ""}</label>
             <select
               value={dressing}
-              disabled={Boolean(wardrobeItem) && !nsfw}
+              disabled={Boolean(wardrobeItem)}
               onChange={(e) => setDressing(e.target.value)}
             >
               {DRESSINGS.map((d) => (
@@ -314,7 +324,7 @@ export function Generate() {
                 </option>
               ))}
             </select>
-            {dressing === "other" && !(wardrobeItem && !nsfw) && (
+            {dressing === "other" && !wardrobeItem && (
               <input
                 className="mt-2"
                 value={dressingOther}

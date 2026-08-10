@@ -50,6 +50,32 @@ a {
   min-height: 100vh;
 }
 
+.app-sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+@media (min-width: 861px) {
+  .app-sidebar {
+    position: sticky;
+    top: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
+    max-height: 100vh;
+    max-height: 100dvh;
+  }
+}
+
 .panel {
   background: color-mix(in srgb, var(--bg1) 88%, transparent);
   border: 1px solid var(--line);
@@ -266,6 +292,71 @@ a {
   align-items: center;
   gap: 0.5rem;
   margin-bottom: 0.65rem;
+}
+
+.vault-toggle {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.vault-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.vault-toggle-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.vault-switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 2.75rem;
+  height: 1.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg2);
+  cursor: pointer;
+  padding: 0;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.vault-switch.on {
+  background: color-mix(in srgb, var(--accent) 35%, var(--bg2));
+  border-color: var(--accent);
+}
+
+.vault-switch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.vault-switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 999px;
+  background: var(--bg1);
+  border: 1px solid var(--line);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  transition: transform 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+.vault-switch.on .vault-switch-thumb {
+  transform: translateX(1.15rem);
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .lightbox-root {

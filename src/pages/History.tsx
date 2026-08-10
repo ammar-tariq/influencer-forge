@@ -45,9 +45,18 @@ export function History() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["generations"] }),
   });
 
-  const items = useMemo(() => generations.data ?? [], [generations.data]);
   const browseUnlocked = Boolean(vaultStatus.data?.unlocked);
   const pendingNsfw = vaultStatus.data?.pending_nsfw ?? 0;
+  const hiddenVaulted = useMemo(() => {
+    if (browseUnlocked) return 0;
+    return (generations.data ?? []).filter((g) => g.is_vaulted).length;
+  }, [generations.data, browseUnlocked]);
+  // When vault is off, hide vaulted NSFW from the Library entirely.
+  const items = useMemo(() => {
+    const all = generations.data ?? [];
+    if (browseUnlocked) return all;
+    return all.filter((g) => !g.is_vaulted);
+  }, [generations.data, browseUnlocked]);
   const selectedIndex = selected ? items.findIndex((g) => g.id === selected.id) : -1;
   const hasPrev = selectedIndex > 0;
   const hasNext = selectedIndex >= 0 && selectedIndex < items.length - 1;
@@ -111,13 +120,16 @@ export function History() {
       {pendingNsfw > 0 && (
         <div className="panel border-[var(--accent-2)]">
           <p className="text-sm">
-            {pendingNsfw} NSFW generation{pendingNsfw === 1 ? "" : "s"} waiting to encrypt.{" "}
-            <Link className="underline" to="/vault">
-              Unlock the vault
-            </Link>{" "}
-            — they move in automatically.
+            {pendingNsfw} NSFW generation{pendingNsfw === 1 ? "" : "s"} waiting to encrypt. Turn on{" "}
+            <strong>Privacy vault</strong> in the sidebar — they move in automatically.
           </p>
         </div>
+      )}
+      {!browseUnlocked && hiddenVaulted > 0 && (
+        <p className="muted text-sm">
+          {hiddenVaulted} vaulted post{hiddenVaulted === 1 ? "" : "s"} hidden. Turn on Privacy vault
+          in the sidebar to show blur teasers.
+        </p>
       )}
 
       <div className="panel flex flex-wrap gap-3">
@@ -213,15 +225,10 @@ export function History() {
               <button className="btn" onClick={() => regenerate.mutate(selected.id)}>
                 Regenerate
               </button>
-              {selected.is_vaulted && (
-                <Link className="btn secondary" to="/vault">
-                  Open in Vault
-                </Link>
-              )}
               {selected.is_nsfw && !selected.is_vaulted && (
                 <p className="muted text-xs">
-                  NSFW auto-vaults when the vault is unlocked
-                  {browseUnlocked ? "…" : " — unlock on the Vault page to encrypt pending items."}
+                  NSFW auto-vaults when Privacy vault is on
+                  {browseUnlocked ? "…" : " — enable it in the sidebar to encrypt pending items."}
                 </p>
               )}
               {detailSrc && !selected.is_vaulted && (
