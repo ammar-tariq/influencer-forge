@@ -1,0 +1,13 @@
+---
+description: Python orchestrator conventions
+globs: forge-python/**/*.py
+alwaysApply: false
+---
+
+# Python orchestrator
+
+- Use Pydantic models for API IO (`forge_python/models.py`).
+- Keep SQL in `db.py`; avoid ad-hoc schema drift from the spec.
+- Prefer async FastAPI + aiosqlite patterns already in the package.
+- Run `uv run ruff check` and `uv run pytest` after changes.
+- Type-check mindset: mypy strict is a goal; do not silence without reason.

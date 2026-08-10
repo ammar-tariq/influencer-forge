@@ -1,0 +1,13 @@
+---
+description: React/TypeScript UI conventions
+globs: src/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Frontend
+
+- Use react-query for server state and zustand only for UI shell state.
+- API access goes through `src/api/client.ts`.
+- Keep pages thin; reusable pieces under `src/components/`.
+- Add Vitest coverage for pure helpers and critical client logic.
+- Match existing visual language in `src/index.css` (studio, not generic admin dashboard).

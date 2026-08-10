@@ -1,0 +1,7 @@
+{
+  "name": "lip_sync",
+  "description": "Wav2Lip talking-head workflow",
+  "stub": true,
+  "model": "wav2lip",
+  "nodes": []
+}

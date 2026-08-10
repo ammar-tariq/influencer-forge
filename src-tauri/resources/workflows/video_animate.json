@@ -1,0 +1,7 @@
+{
+  "name": "video_animate",
+  "description": "AnimateDiff video generation",
+  "stub": true,
+  "model": "animate_diff",
+  "nodes": []
+}

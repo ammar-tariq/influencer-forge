@@ -1,0 +1,6 @@
+{
+  "name": "face_seed",
+  "description": "Extract InstantID/IP-Adapter face embedding from reference image",
+  "stub": true,
+  "nodes": []
+}

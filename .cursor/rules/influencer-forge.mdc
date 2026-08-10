@@ -1,0 +1,14 @@
+---
+description: InfluencerForge project conventions for all work
+alwaysApply: true
+---
+
+# InfluencerForge rules
+
+- Follow `PROJECT_SPECIFICATION.md`, `AGENTS.md`, and `docs/`.
+- Keep local-first architecture: UI → FastAPI `:8765` → SQLite / workers.
+- Phase 1 generation is stubbed; do not vendor multi-GB models into git.
+- Every feature change needs tests + docs updates.
+- Commits from AI passes must include trailer `AI-Generated: true`.
+- Ask the user before pushing, force-pushing, or destructive git operations.
+- Prefer Conventional Commits and small, phase-aligned changes.

@@ -1,0 +1,7 @@
+{
+  "name": "image_faceid",
+  "description": "SDXL image generation with face consistency",
+  "stub": true,
+  "model": "sdxl",
+  "nodes": []
+}
