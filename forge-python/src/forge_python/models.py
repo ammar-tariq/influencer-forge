@@ -156,6 +156,12 @@ class GenerationCreate(BaseModel):
     require_real: bool = False
 
 
+class GenerationBatchCreate(GenerationCreate):
+    """Enqueue several generations with the same prompt (fresh seeds each)."""
+
+    count: int = Field(default=4, ge=2, le=8)
+
+
 class Generation(BaseModel):
     id: int
     influencer_id: int
@@ -181,6 +187,10 @@ class Generation(BaseModel):
     error_message: str | None = None
     created_at: str | None = None
     completed_at: str | None = None
+
+
+class GenerationBatchResponse(BaseModel):
+    generations: list[Generation]
 
 
 class GenerationReplace(BaseModel):

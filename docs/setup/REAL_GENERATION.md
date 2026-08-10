@@ -22,8 +22,8 @@
 ## Guided create + scene builder
 
 1. **Studio home** checklist links you through Create → Influencers → Generate. Use the sidebar **Privacy vault** switch for NSFW.
-2. **New influencer** is 3 steps: Personality → Face (gender) → Body (height, figure, skin, etc.). After create you land on that influencer’s **profile**.
-3. On the profile, **Face lock setup** shows identity-shot progress. Edit the prompt, re-roll, or upload a Face Seed, then **Lock this face**. Until locked, later gens won’t use img2img identity.
+2. **New influencer** is 3 steps: Personality → Face (gender) → Body (height, figure, skin, etc.). After create, the app queues **four** full-body identity shots (`POST /api/generations/batch`) and opens that influencer’s **profile**.
+3. On the profile, **Face lock setup** shows those options as they finish (queue concurrency is 1). Edit the prompt and **Generate 4 face options** again, re-roll a card, or upload a Face Seed, then **Use this face**. Until locked, later gens won’t use FaceID / img2img identity.
 4. **Edit** personality/looks on the profile anytime (`PATCH` APIs). Changing hair/eyes/ethnicity while locked shows a “re-lock face” banner (lock is not auto-cleared).
 5. **Influencers** (sidebar) lists everyone; open a card for personality/looks, all their posts, Create post, or Archive.
 6. **Library** (`/history`) filters with `?influencer={id}` — also linked from each profile (“All posts” / “Their posts”).

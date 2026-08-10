@@ -103,12 +103,13 @@ export function InfluencerDetail() {
 
   const tryIdentity = useMutation({
     mutationFn: () =>
-      api.createGeneration({
+      api.createGenerationBatch({
         influencer_id: influencerId,
         user_prompt: identityPrompt.trim() || DEFAULT_IDENTITY_PROMPT,
         aspect_ratio: "9:16",
         workflow_type: "image",
         is_nsfw: false,
+        count: 4,
       }),
     onSuccess: invalidate,
   });
@@ -288,13 +289,18 @@ export function InfluencerDetail() {
             {justCreated ? "Pick their face" : "Identity shots"}
           </h2>
           <p className="muted mt-2 text-sm">
-            Generate or upload a reference, then lock the face you want later posts to keep.
+            Queue four face options (they fill in as the queue finishes), then lock the one you want
+            later posts to keep — or upload a Face Seed instead.
           </p>
 
           {inFlight.length > 0 && (
             <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl bg-[var(--bg2)] px-4 py-3 text-sm">
               <StatusBadge status={inFlight[0]?.status ?? "processing"} />
-              <span className="muted">Shot #{inFlight[0]?.id}</span>
+              <span className="muted">
+                {inFlight.length === 1
+                  ? `Shot #${inFlight[0]?.id} in progress`
+                  : `${inFlight.length} face options queued / generating`}
+              </span>
             </div>
           )}
 
@@ -313,7 +319,7 @@ export function InfluencerDetail() {
               disabled={tryIdentity.isPending || !identityPrompt.trim()}
               onClick={() => tryIdentity.mutate()}
             >
-              {tryIdentity.isPending ? "Queuing…" : "Generate identity shot"}
+              {tryIdentity.isPending ? "Queuing…" : "Generate 4 face options"}
             </button>
           </div>
 

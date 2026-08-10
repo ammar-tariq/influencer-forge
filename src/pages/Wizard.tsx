@@ -174,14 +174,15 @@ export function Wizard() {
         looks_id: looks.id,
         name: name.trim(),
       });
-      // First identity lock shot — full body so base portrait is not only a head crop.
-      await api.createGeneration({
+      // Batch of identity shots so the user can pick a face to lock.
+      await api.createGenerationBatch({
         influencer_id: influencer.id,
         user_prompt:
-          "full body shot, head to toe visible in frame, standing naturally, wearing casual everyday outfit, clean photo studio background",
+          "full body shot, head to toe visible in frame, standing naturally, wearing casual everyday outfit, clean photo studio background, face clearly visible",
         aspect_ratio: "9:16",
         workflow_type: "image",
         is_nsfw: false,
+        count: 4,
       });
       return influencer;
     },
@@ -204,8 +205,8 @@ export function Wizard() {
       <header>
         <h1 className="text-3xl tracking-tight">Create influencer</h1>
         <p className="muted mt-1">
-          Step {step} of 3 — {STEPS[step - 1]}. We’ll queue a first full-body photo, then open their
-          profile so you can lock the face.
+          Step {step} of 3 — {STEPS[step - 1]}. We’ll queue four full-body face options, then open
+          their profile so you can pick one and lock it.
         </p>
         <ol className="mt-4 flex gap-2 text-xs">
           {STEPS.map((label, i) => {

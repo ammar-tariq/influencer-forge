@@ -37,6 +37,8 @@ from forge_python.models import (
     HealthResponse,
     Influencer,
     InfluencerCreate,
+    GenerationBatchCreate,
+    GenerationBatchResponse,
     InfluencerDetail,
     Looks,
     LooksCreate,
@@ -742,8 +744,18 @@ async def get_generation(generation_id: int) -> Generation:
     return Generation(**row)
 
 
-@app.post("/api/generations", response_model=Generation)
-async def create_generation(body: GenerationCreate) -> Generation:
+_SEED_FROM_BODY = object()
+
+
+async def _enqueue_generation(
+    body: GenerationCreate,
+    *,
+    seed: Any = _SEED_FROM_BODY,
+) -> Generation:
+    """Validate, insert, and enqueue one generation.
+
+    Pass ``seed=None`` to force a null seed (ComfyUI draws a new one). Omit to use ``body.seed``.
+    """
     wardrobe_keywords = None
     if body.wardrobe_item_id:
         item = await db.fetchone(
@@ -794,6 +806,7 @@ async def create_generation(body: GenerationCreate) -> Generation:
     )
     negative = resolve_negative_prompt(is_nsfw=is_nsfw, user_prompt=body.user_prompt)
     wardrobe_id = None if is_nsfw else body.wardrobe_item_id
+    use_seed: int | None = body.seed if seed is _SEED_FROM_BODY else seed  # type: ignore[assignment]
     cur = await db.execute(
         """
         INSERT INTO generations(
@@ -811,7 +824,7 @@ async def create_generation(body: GenerationCreate) -> Generation:
             body.model_used,
             body.llm_used,
             body.aspect_ratio,
-            body.seed,
+            use_seed,
             body.steps,
             body.cfg_scale,
             int(is_nsfw),
@@ -824,6 +837,32 @@ async def create_generation(body: GenerationCreate) -> Generation:
     row = await db.fetchone("SELECT * FROM generations WHERE id = ?", (gid,))
     assert row
     return Generation(**row)
+
+
+@app.post("/api/generations", response_model=Generation)
+async def create_generation(body: GenerationCreate) -> Generation:
+    return await _enqueue_generation(body)
+
+
+@app.post("/api/generations/batch", response_model=GenerationBatchResponse)
+async def create_generation_batch(body: GenerationBatchCreate) -> GenerationBatchResponse:
+    """Queue several copies of the same prompt with independent (null) seeds."""
+    single = GenerationCreate(
+        influencer_id=body.influencer_id,
+        user_prompt=body.user_prompt,
+        workflow_type=body.workflow_type,
+        aspect_ratio=body.aspect_ratio,
+        seed=None,
+        steps=body.steps,
+        cfg_scale=body.cfg_scale,
+        wardrobe_item_id=body.wardrobe_item_id,
+        is_nsfw=body.is_nsfw,
+        model_used=body.model_used,
+        llm_used=body.llm_used,
+        require_real=body.require_real,
+    )
+    gens = [await _enqueue_generation(single, seed=None) for _ in range(body.count)]
+    return GenerationBatchResponse(generations=gens)
 
 
 @app.post("/api/generations/{generation_id}/regenerate", response_model=Generation)

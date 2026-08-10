@@ -279,3 +279,45 @@ async def test_regenerate_clears_seed(client: AsyncClient) -> None:
         assert body["user_prompt"] == "identity shot"
     finally:
         orch.queue = None
+
+
+@pytest.mark.asyncio
+async def test_generation_batch_queues_distinct_null_seeds(client: AsyncClient) -> None:
+    """Batch identity shots: N queued rows, each with a fresh (null) seed."""
+    import forge_python.orchestrator as orch
+    from forge_python.orchestrator import db
+
+    iid = await _create_influencer(client, "BatchFace")
+    enqueued: list[int] = []
+
+    class _QuietQueue:
+        async def enqueue(self, generation_id: int, *, require_real: bool = False) -> None:
+            enqueued.append(generation_id)
+            await db.execute(
+                "UPDATE generations SET status = 'queued' WHERE id = ?",
+                (generation_id,),
+            )
+
+    orch.queue = _QuietQueue()  # type: ignore[assignment]
+    try:
+        resp = await client.post(
+            "/api/generations/batch",
+            json={
+                "influencer_id": iid,
+                "user_prompt": "full body identity shot, studio",
+                "aspect_ratio": "9:16",
+                "workflow_type": "image",
+                "is_nsfw": False,
+                "count": 3,
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        gens = resp.json()["generations"]
+        assert len(gens) == 3
+        ids = [g["id"] for g in gens]
+        assert len(set(ids)) == 3
+        assert all(g["seed"] is None for g in gens)
+        assert all(g["status"] == "queued" for g in gens)
+        assert enqueued == ids
+    finally:
+        orch.queue = None

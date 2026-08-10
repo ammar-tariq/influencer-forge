@@ -184,6 +184,20 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  createGenerationBatch: (body: {
+    influencer_id: number;
+    user_prompt: string;
+    workflow_type?: string;
+    aspect_ratio?: string;
+    wardrobe_item_id?: number;
+    is_nsfw?: boolean;
+    require_real?: boolean;
+    count?: number;
+  }) =>
+    request<{ generations: Generation[] }>("/api/generations/batch", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   regenerate: (id: number) =>
     request<Generation>(`/api/generations/${id}/regenerate`, { method: "POST" }),
   replaceGeneration: (

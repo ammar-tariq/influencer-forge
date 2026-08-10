@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Batch face options on create/setup: `POST /api/generations/batch` queues 2–8 shots (wizard + profile default to 4) so users can pick a face to lock.
 - Influencers list + detail screens (`/influencers`, `/influencers/:id`) with personality/looks, per-influencer generations, archive, and Library deep links (`?influencer=`).
 - Face-lock setup on the profile: identity prompt retries, Face Seed upload, `POST /api/influencers/{id}/face-lock` (explicit lock; no longer auto-locks on first SFW).
 - `PATCH /api/personalities/{id}` and `PATCH /api/looks/{id}` with profile edit UI; `face_lock_stale` warning when hair/eyes/ethnicity change while locked.
