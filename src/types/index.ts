@@ -57,9 +57,27 @@ export interface Generation {
   is_nsfw: boolean;
   is_vaulted: boolean;
   teaser_path?: string | null;
+  vault_file_path?: string | null;
   error_message?: string | null;
   created_at?: string | null;
   completed_at?: string | null;
+}
+
+export interface VaultedGeneration {
+  id: number;
+  influencer_id: number;
+  user_prompt: string;
+  teaser_path?: string | null;
+  vault_file_path?: string | null;
+  created_at?: string | null;
+  completed_at?: string | null;
+  is_nsfw?: boolean;
+}
+
+export interface VaultStatus {
+  configured: boolean;
+  unlocked: boolean;
+  pending_nsfw?: number;
 }
 
 export interface WardrobeItem {

@@ -9,7 +9,7 @@
 | Model bootstrap | `model_downloader.py` + `resources/bootstrap/models.json` | Resumable downloads when enabled |
 | Full reset | `reset.py` + `POST /api/system/reset` | Wipes app data; never touches hfModels/ComfyUI |
 | LLM expand | `llm_manager.py` | Template-first |
-| Vault | `vault.py` | Argon2id + AES-GCM |
+| Vault | `vault.py` | Argon2id + AES-GCM; wipe cleartext; teaser gallery + reveal API |
 | Scheduler | `scheduler.py` | APScheduler reminders |
 | System monitor | `system_monitor.py` | psutil |
 | Post | `post_processing.py` | Pillow edits |

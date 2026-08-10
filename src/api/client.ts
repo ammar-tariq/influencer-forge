@@ -8,6 +8,8 @@ import type {
   Schedule,
   SettingItem,
   SystemStats,
+  VaultedGeneration,
+  VaultStatus,
   WardrobeItem,
 } from "../types";
 
@@ -137,15 +139,28 @@ export const api = {
   }) => request<Schedule>("/api/schedules", { method: "POST", body: JSON.stringify(body) }),
   reminders: () => request<{ reminders: unknown[] }>("/api/schedules/reminders"),
 
-  vaultStatus: () => request<{ configured: boolean; unlocked: boolean }>("/api/vault/status"),
+  vaultStatus: () => request<VaultStatus>("/api/vault/status"),
   vaultSetup: (pin: string) =>
     request("/api/vault/setup", { method: "POST", body: JSON.stringify({ pin }) }),
   vaultUnlock: (pin: string) =>
     request("/api/vault/unlock", { method: "POST", body: JSON.stringify({ pin }) }),
   vaultLock: () => request("/api/vault/lock", { method: "POST" }),
   vaultGeneration: (id: number) =>
-    request(`/api/vault/generations/${id}`, { method: "POST" }),
+    request<{ vault_file_path: string; teaser_path: string }>(`/api/vault/generations/${id}`, {
+      method: "POST",
+    }),
+  listVaultGenerations: () => request<VaultedGeneration[]>("/api/vault/generations"),
+  vaultPendingNsfw: () =>
+    request<{ vaulted: number[]; errors: Array<{ id: string; error: string }>; count: number }>(
+      "/api/vault/generations/pending",
+      { method: "POST" },
+    ),
 };
+
+/** Full reveal URL for a vaulted generation (requires unlocked vault session). */
+export function vaultRevealUrl(id: number): string {
+  return `${BASE}/api/vault/generations/${id}/image`;
+}
 
 /**
  * Map absolute on-disk paths from the API to HTTP URLs served by the orchestrator.

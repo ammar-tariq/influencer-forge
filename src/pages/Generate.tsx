@@ -6,6 +6,7 @@ import { MediaImage } from "../components/common/MediaImage";
 import { ReadinessChecklist } from "../components/common/ReadinessChecklist";
 import { ASPECT_RATIOS, WORKFLOW_TYPES } from "../constants/options";
 import { useQueue } from "../hooks/useQueue";
+import { useVault } from "../hooks/useVault";
 
 /** Only Family/Teen are hard-blocked. Missing rating (stale API) stays selectable. */
 function nsfwBlocked(ageRating?: string | null) {
@@ -18,6 +19,7 @@ export function Generate() {
   const personalities = useQuery({ queryKey: ["personalities"], queryFn: api.listPersonalities });
   const wardrobe = useQuery({ queryKey: ["wardrobe"], queryFn: api.listWardrobe });
   const readiness = useQuery({ queryKey: ["readiness"], queryFn: api.readiness, refetchInterval: 5000 });
+  const { status: vaultStatus } = useVault();
   const queue = useQueue();
   const [influencerId, setInfluencerId] = useState<number | "">("");
   const [prompt, setPrompt] = useState("golden hour portrait outdoors");
@@ -101,6 +103,30 @@ export function Generate() {
       </header>
 
       {mode === "stub" && <ReadinessChecklist />}
+
+      {nsfw && !vaultStatus.data?.configured && (
+        <div className="panel border-[var(--accent-2)]">
+          <p className="text-sm">
+            NSFW mode is on, but the Privacy Vault has no PIN yet. Outputs stay in cleartext History
+            until you{" "}
+            <Link className="underline" to="/vault">
+              set up the vault
+            </Link>
+            .
+          </p>
+        </div>
+      )}
+      {nsfw && vaultStatus.data?.configured && !vaultStatus.data.unlocked && (
+        <div className="panel border-[var(--accent-2)]">
+          <p className="text-sm">
+            Vault is locked — NSFW gens will stay in History.{" "}
+            <Link className="underline" to="/vault">
+              Unlock
+            </Link>{" "}
+            to auto-encrypt new explicit outputs.
+          </p>
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
         <div className="panel">

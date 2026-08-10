@@ -74,9 +74,9 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     settings.ensure_directories()
     await db.connect()
     await downloader.run_bootstrap()
-    queue = QueueWorker(db)
-    schedules = ScheduleService(db)
     vault = VaultService(db)
+    queue = QueueWorker(db, vault=vault)
+    schedules = ScheduleService(db)
     await queue.start()
     schedules.start()
     logger.info("Orchestrator ready on %s:%s", settings.host, settings.port)
@@ -634,9 +634,9 @@ async def full_reset(body: ResetRequest) -> dict[str, Any]:
     report["queue_cleared"] = cleared
 
     await db.connect()
-    queue = QueueWorker(db)
-    schedules = ScheduleService(db)
     vault = VaultService(db)
+    queue = QueueWorker(db, vault=vault)
+    schedules = ScheduleService(db)
     await queue.start()
     schedules.start()
     logger.warning("Full local reset completed: %s", report)
@@ -708,9 +708,14 @@ async def schedule_reminders() -> dict[str, Any]:
 
 # --- Vault ---
 @app.get("/api/vault/status")
-async def vault_status() -> dict[str, bool]:
+async def vault_status() -> dict[str, Any]:
     v = _require_vault()
-    return {"configured": await v.is_configured(), "unlocked": v.unlocked}
+    pending = await v.count_pending_nsfw() if await v.is_configured() else 0
+    return {
+        "configured": await v.is_configured(),
+        "unlocked": v.unlocked,
+        "pending_nsfw": pending,
+    }
 
 
 @app.post("/api/vault/setup")
@@ -733,12 +738,38 @@ async def vault_lock() -> dict[str, str]:
     return {"status": "locked"}
 
 
+@app.get("/api/vault/generations")
+async def list_vault_generations() -> list[dict[str, Any]]:
+    return await _require_vault().list_vaulted()
+
+
+@app.post("/api/vault/generations/pending")
+async def vault_pending_nsfw() -> dict[str, Any]:
+    try:
+        return await _require_vault().vault_pending_nsfw()
+    except RuntimeError as exc:
+        raise HTTPException(401, str(exc)) from exc
+
+
 @app.post("/api/vault/generations/{generation_id}")
 async def vault_generation(generation_id: int) -> dict[str, str]:
     try:
         return await _require_vault().vault_generation(generation_id)
     except RuntimeError as exc:
         raise HTTPException(401, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@app.get("/api/vault/generations/{generation_id}/image")
+async def reveal_vault_generation(generation_id: int) -> FileResponse:
+    try:
+        path = await _require_vault().reveal_generation(generation_id)
+    except RuntimeError as exc:
+        raise HTTPException(401, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return FileResponse(path, media_type="image/png")
 
 
 # Media — dynamic FileResponse so IFORGE_DATA_DIR / tests can retarget settings.media_dir

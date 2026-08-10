@@ -30,6 +30,14 @@ For Adult or **18+** influencers:
 
 The pipeline then uses adult framing + clothing negatives. RealVisXL can still refuse some scenes; stronger wording and re-rolls help. Family/Teen ratings block NSFW.
 
+### Privacy Vault
+
+1. Open **Vault** → set a PIN (min 4 chars). Setup leaves the vault **unlocked**.
+2. With the vault unlocked, new NSFW jobs **auto-vault**: encrypt to `vault/{id}.bin`, write a blurred teaser, delete cleartext PNG/thumb.
+3. History shows teasers + “In vault” for vaulted rows. Full image: unlock → Vault gallery (or History when unlocked).
+4. If NSFW finished while locked, use **Vault pending NSFW** after unlock.
+5. **Lock** wipes the short-lived decrypt cache under `media/vault_cache/`.
+
 ## Viewing images in the app
 
 Orchestrator serves files from the app data `media/` folder at `http://127.0.0.1:8765/media/...`:

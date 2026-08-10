@@ -6,6 +6,8 @@ import asyncio
 import logging
 from collections import deque
 
+from typing import TYPE_CHECKING
+
 from forge_python.comfyui_client import ComfyUIClient
 from forge_python.db import Database
 from forge_python.llm_manager import (
@@ -14,12 +16,16 @@ from forge_python.llm_manager import (
     resolve_negative_prompt,
 )
 
+if TYPE_CHECKING:
+    from forge_python.vault import VaultService
+
 logger = logging.getLogger(__name__)
 
 
 class QueueWorker:
-    def __init__(self, db: Database) -> None:
+    def __init__(self, db: Database, vault: VaultService | None = None) -> None:
         self.db = db
+        self.vault = vault
         self.comfy = ComfyUIClient()
         self._queue: deque[int] = deque()
         self._task: asyncio.Task[None] | None = None
@@ -189,9 +195,17 @@ class QueueWorker:
             (str(out), str(thumb), seed, model, generation_id),
         )
         # First successful image becomes the look's stable "model" portrait for the dashboard.
-        if looks and not looks.get("base_portrait_path"):
+        # Skip for NSFW so a vaulted adult shot does not become the Studio avatar.
+        if looks and not looks.get("base_portrait_path") and not is_nsfw:
             portrait = str(thumb or out)
             await self.db.execute(
                 "UPDATE looks SET base_portrait_path = ? WHERE id = ?",
                 (portrait, looks["id"]),
             )
+        # Auto-vault NSFW when the privacy vault is unlocked.
+        if is_nsfw and self.vault is not None and self.vault.unlocked:
+            try:
+                await self.vault.vault_generation(generation_id)
+                logger.info("Auto-vaulted NSFW generation %s", generation_id)
+            except (RuntimeError, ValueError, OSError) as exc:
+                logger.warning("Auto-vault skipped for %s: %s", generation_id, exc)
