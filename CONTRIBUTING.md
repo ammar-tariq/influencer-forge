@@ -15,6 +15,8 @@ Thanks for helping build a local-first, open-source influencer studio.
 
 5. Prefer small PRs aligned to the roadmap phases.
 
+**Face consistency** across generations still needs work — ideas and PRs are welcome. See [Face consistency — known limitations](./docs/setup/REAL_GENERATION.md#face-consistency--known-limitations).
+
 ## Local setup
 
 See [README.md](./README.md) and [docs/setup/CURSOR.md](./docs/setup/CURSOR.md).

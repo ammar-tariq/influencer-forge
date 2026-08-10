@@ -66,6 +66,12 @@ Install notes: `src-tauri/resources/comfyui/README.md`. Readiness item `ipadapte
 
 Bikini/lingerie prompts no longer auto-append `nude` or ban the outfit in negatives. Upload a Face Seed for the strongest lock.
 
+### Face consistency — known limitations
+
+**Honest status:** same-person accuracy across poses, outfits, framing, and video is **not solved**. Face Seed + FaceID/img2img help a lot, but drift (gender, age, hair, bone structure) still shows up — especially on hard scene changes, NSFW LoRAs that fight the face, light AnimateDiff clips, and when FaceID weights/nodes are missing.
+
+This is an active improvement area. We are **open to suggestions, research pointers, workflows, and PRs** (better staging crops, InstantID/PuLID paths, LoRA training per influencer, denoise schedules, ControlNet face locks, eval sets, etc.). Please open an issue or PR rather than assuming the current lock is “perfect identity.”
+
 ## Video (AnimateDiff)
 
 1. Install **ComfyUI-AnimateDiff-Evolved** + **ComfyUI-VideoHelperSuite**, **ffmpeg** / `imageio-ffmpeg`, and an `mm_sdxl_*` motion module (see ComfyUI README).

@@ -7,6 +7,10 @@ Local-first desktop studio for creating and generating content for AI virtual in
 
 Phase 1 uses a **stub generator** (Pillow placeholders) and **system / uv venv Python**. Real ComfyUI/SDXL is optional; release builds assemble a portable Python via `scripts/assemble-portable-python.sh` (weights still downloaded separately — see `docs/setup/PACKAGING.md`).
 
+![InfluencerForge demo](./demo.gif)
+
+Face identity across posts still needs work — see [known limitations](./docs/setup/REAL_GENERATION.md#face-consistency--known-limitations). Suggestions and PRs welcome.
+
 ---
 
 ## Quick start (developers)
@@ -94,6 +98,7 @@ influencer-forge/
 
 - Stub generation + full UI/API surface for local development
 - Real workflows under `src-tauri/resources/workflows/` (FaceID / img2img / AnimateDiff)
+- Face lock helps but **consistent identity is still imperfect** — help welcome ([details](./docs/setup/REAL_GENERATION.md#face-consistency--known-limitations))
 - Enable real downloads with `IFORGE_ENABLE_MODEL_DOWNLOADS=1` / `IFORGE_ENABLE_COMFYUI=1`
 - Clone ComfyUI into `src-tauri/resources/comfyui/ComfyUI` (see that folder’s README), then set `IFORGE_ENABLE_COMFYUI=1`
 - Release packaging: `./scripts/assemble-portable-python.sh` then `npm run tauri build` (see `docs/setup/PACKAGING.md`)

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- README demo GIF (`demo.gif`) and docs note that face-consistency accuracy still needs improvement (open to suggestions/PRs).
 - Wizard height option **Very short (under 4'11" / 150cm)** below Petite.
 - Docs/readiness/install script point users to download the recommended SDXL NSFW LoRA (Muapi woman033) — weights stay out of git.
 - Wav2Lip talking-head path (`scripts/install-wav2lip.sh` + ComfyUI node) with ffmpeg still+audio fallback.
