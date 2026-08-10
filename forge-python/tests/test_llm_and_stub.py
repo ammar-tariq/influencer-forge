@@ -84,6 +84,20 @@ def test_nsfw_expansion_respects_full_body_scene() -> None:
     assert "cartoon" in neg
 
 
+def test_nsfw_toggle_keeps_clothed_scene() -> None:
+    looks = "12-year-old girl, Caucasian"
+    scene = "full body shot, standing, wearing casual everyday outfit, studio"
+    expanded = expand_prompt(
+        scene,
+        influencer_name="Natasha",
+        looks_prompt=looks,
+        is_nsfw=True,
+    )
+    assert "casual everyday outfit" in expanded
+    assert ", nude," not in expanded.lower()
+    assert "bare skin" not in expanded.lower()
+
+
 def test_bikini_prompt_does_not_force_nude() -> None:
     looks = "25-year-old adult woman, Caucasian"
     scene = "full body from behind, looking over shoulder, wearing a bikini swimsuit, sunny beach"

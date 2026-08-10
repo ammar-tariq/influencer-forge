@@ -356,6 +356,15 @@ def expand_prompt(
     if from_wardrobe and wardrobe_keywords:
         wardrobe_bit = f", wearing {wardrobe_keywords.strip()}"
 
+    scene_already_clothed = bool(
+        re.search(
+            r"\b(wearing|worn|outfit|dressed|clothes|clothing|hoodie|dress|shirt|"
+            r"blouse|jeans|skirt|bikini|lingerie|swimsuit|coat|jacket|sweater)\b",
+            clothing_src,
+            flags=re.IGNORECASE,
+        )
+    )
+
     extra = ""
     if is_nsfw:
         if from_wardrobe or outfit:
@@ -364,6 +373,9 @@ def expand_prompt(
                 extra = "skin visible, "
         elif wants_nude:
             extra = "nude, bare skin, "
+        elif scene_already_clothed:
+            # NSFW toggle on but scene already specifies clothes — keep the outfit.
+            extra = ""
         else:
             # Explicit NSFW toggle without outfit language.
             extra = "nude, bare skin, "

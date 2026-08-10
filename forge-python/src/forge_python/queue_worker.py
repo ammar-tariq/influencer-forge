@@ -8,7 +8,7 @@ from collections import deque
 
 from typing import TYPE_CHECKING
 
-from forge_python.comfyui_client import ComfyUIClient
+from forge_python.comfyui_client import ComfyUIClient, _video_faceid_enabled
 from forge_python.db import Database, body_from_json
 from forge_python.llm_manager import (
     build_looks_prompt,
@@ -34,6 +34,7 @@ class QueueWorker:
         self._paused = False
         self._wake = asyncio.Event()
         self._require_real: dict[int, bool] = {}
+        self._current_id: int | None = None
 
     @property
     def paused(self) -> bool:
@@ -67,9 +68,11 @@ class QueueWorker:
         self._task = None
 
     def status(self) -> dict[str, int | bool]:
+        # Worker loop stays alive when idle — only count an active job.
+        busy = bool(getattr(self, "_current_id", None))
         return {
             "pending": len(self._queue),
-            "processing": 1 if self._task and not self._task.done() and not self._paused else 0,
+            "processing": 1 if busy and not self._paused else 0,
             "paused": self._paused,
         }
 
@@ -105,6 +108,7 @@ class QueueWorker:
                 await self._wake.wait()
                 continue
             generation_id = self._queue.popleft()
+            self._current_id = generation_id
             try:
                 await self._process(generation_id)
             except Exception as exc:
@@ -119,6 +123,7 @@ class QueueWorker:
                 )
             finally:
                 self._require_real.pop(generation_id, None)
+                self._current_id = None
 
     async def _process(self, generation_id: int) -> None:
         row = await self.db.fetchone("SELECT * FROM generations WHERE id = ?", (generation_id,))
@@ -142,7 +147,11 @@ class QueueWorker:
             )
         identity_explore = bool(row.get("identity_explore"))
         face_reference = None if identity_explore else resolve_face_lock_path(looks)
-        face_locked = face_reference is not None
+        # Only claim "same person as reference" when FaceID/img2img will actually run.
+        workflow = str(row["workflow_type"] or "image")
+        face_locked = bool(face_reference) and (
+            workflow != "video" or _video_faceid_enabled()
+        )
         wardrobe_keywords = None
         wardrobe_id = row.get("wardrobe_item_id")
         if wardrobe_id:

@@ -1,6 +1,6 @@
 {
   "name": "video_animate",
-  "description": "AnimateDiff Evolved Gen2 short clip (SDXL motion), Mac-safe defaults (8 frames @ 384x640). Optional FaceID via IFORGE_VIDEO_FACEID=1. Requires ComfyUI-AnimateDiff-Evolved + Video Helper Suite + ffmpeg.",
+  "description": "AnimateDiff Evolved Gen2 short clip (SDXL motion), Mac-safe defaults (12 frames @ 384x640, 6fps). FaceID on by default (IFORGE_VIDEO_FACEID=0 to disable). Requires ComfyUI-AnimateDiff-Evolved + Video Helper Suite + ffmpeg.",
   "stub": false,
   "model": "animate_diff",
   "meta": {
@@ -23,7 +23,7 @@
       "VHS_VideoCombine"
     ],
     "motion_module": "mm_sdxl_v10_beta.safetensors",
-    "frame_count": 8,
+    "frame_count": 12,
     "ipadapter_file": "ip-adapter-faceid-plusv2_sdxl.bin",
     "clip_vision_file": "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
   },
@@ -54,7 +54,7 @@
       "inputs": {
         "width": 384,
         "height": 640,
-        "batch_size": 8
+        "batch_size": 12
       }
     },
     "6": {
@@ -82,7 +82,7 @@
       "class_type": "VHS_VideoCombine",
       "inputs": {
         "images": ["8", 0],
-        "frame_rate": 8,
+        "frame_rate": 6,
         "loop_count": 0,
         "filename_prefix": "influencerforge_vid",
         "format": "video/h264-mp4",

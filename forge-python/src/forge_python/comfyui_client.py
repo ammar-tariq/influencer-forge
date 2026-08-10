@@ -30,13 +30,12 @@ VIDEO_ASPECT_SIZES = {
 
 
 def _video_faceid_enabled() -> bool:
-    """FaceID+AnimateDiff regularly kills ComfyUI on Mac; opt-in only."""
-    return os.environ.get("IFORGE_VIDEO_FACEID", "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
+    """FaceID on video keeps gender/identity. Default on at Mac-safe res; set 0 to disable.
+
+    Disable with IFORGE_VIDEO_FACEID=0 if ComfyUI OOMs again.
+    """
+    raw = os.environ.get("IFORGE_VIDEO_FACEID", "1").strip().lower()
+    return raw not in {"0", "false", "no", "off"}
 
 
 def _cover_resize(image: Image.Image, width: int, height: int) -> Image.Image:

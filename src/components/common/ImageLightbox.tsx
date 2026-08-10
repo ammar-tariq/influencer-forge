@@ -107,9 +107,11 @@ export function ImageLightbox({
                 src={imageSrc}
                 className="lightbox-image"
                 controls
+                muted
                 autoPlay
                 loop
                 playsInline
+                preload="auto"
               />
             ) : imageSrc ? (
               <img src={imageSrc} alt={title} className="lightbox-image" />

@@ -65,8 +65,10 @@ export function MediaImage({
         className={mediaClass}
         controls
         muted
+        autoPlay
         loop
         playsInline
+        preload="auto"
         onError={() => setFailed(true)}
       />
     );

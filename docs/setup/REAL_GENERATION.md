@@ -60,8 +60,8 @@ Bikini/lingerie prompts no longer auto-append `nude` or ban the outfit in negati
 ## Video (AnimateDiff)
 
 1. Install **ComfyUI-AnimateDiff-Evolved** + **ComfyUI-VideoHelperSuite**, **ffmpeg** / `imageio-ffmpeg`, and an `mm_sdxl_*` motion module (see ComfyUI README).
-2. Generate with type **Video**. Output is `media/generations/{id}.mp4` when VHS encodes successfully (`model_used` = `animate_diff`). Defaults are Mac-safe: 8 frames @ 384×640.
-3. FaceID on video is **off by default** (prevents ComfyUI OOM crashes). Set `IFORGE_VIDEO_FACEID=1` to enable (`animate_diff-faceid`).
+2. Generate with type **Video**. Output is `media/generations/{id}.mp4` when VHS encodes successfully (`model_used` = `animate_diff` or `animate_diff-faceid`). Defaults are Mac-safe: **12 frames @ 384×640**, 6 fps (~2s), autoplay muted in the UI.
+3. FaceID on video is **on by default** at that light size so gender/identity stay locked. If ComfyUI OOMs, set `IFORGE_VIDEO_FACEID=0`.
 4. Without motion modules / ffmpeg, the job errors (or falls back to stub if stub fallback is allowed). Library / Generate preview use `<video>` only for real `.mp4` paths.
 
 ## Explicit / NSFW generations

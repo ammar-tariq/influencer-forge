@@ -12,10 +12,11 @@ from forge_python.face_seed import embedding_present, extract_face_embedding
 def test_video_workflow_mac_safe_defaults() -> None:
     root = Path(__file__).resolve().parents[2] / "src-tauri" / "resources" / "workflows"
     data = json.loads((root / "video_animate.json").read_text(encoding="utf-8"))
-    assert data["meta"]["frame_count"] == 8
-    assert data["prompt"]["5"]["inputs"]["batch_size"] == 8
+    assert data["meta"]["frame_count"] == 12
+    assert data["prompt"]["5"]["inputs"]["batch_size"] == 12
     assert data["prompt"]["5"]["inputs"]["width"] <= 384
     assert data["prompt"]["3"]["inputs"]["steps"] <= 12
+    assert data["prompt"]["9"]["inputs"]["frame_rate"] == 6
 
 
 def test_inject_prompt_applies_video_frame_count() -> None:

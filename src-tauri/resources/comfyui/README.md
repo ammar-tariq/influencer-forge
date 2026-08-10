@@ -76,7 +76,7 @@ Place a motion module, e.g. `mm_sdxl_v10_beta.safetensors`, under:
 
 (or the Evolved `models/` folder). Restart ComfyUI after installing ffmpeg. Generate with type **Video** in the app.
 
-**Apple Silicon:** default video graph is light — **8 frames @ 384×640**, 12 steps, and **FaceID is off** (AnimateDiff alone). FaceID + AnimateDiff at full image size routinely SIGKILL/OOM-crashes ComfyUI. Opt in with `IFORGE_VIDEO_FACEID=1` only if you have headroom. The orchestrator also spawns ComfyUI with `--force-fp16` and `--use-split-cross-attention` on macOS.
+**Apple Silicon:** default video graph is light — **12 frames @ 384×640**, 12 steps, 6 fps. FaceID stays **on** at that size so identity/gender match the face lock (`IFORGE_VIDEO_FACEID=0` to disable if OOM). Full-size FaceID+AnimateDiff still crashes ComfyUI. The orchestrator spawns ComfyUI with `--force-fp16` and `--use-split-cross-attention` on macOS.
 
 Outputs are `.mp4` when Video Helper Suite + ffmpeg encode successfully; without ffmpeg the job fails with a clear encode error (or stub if stub fallback is on). Readiness item `animatediff` tracks motion modules/nodes.
 
