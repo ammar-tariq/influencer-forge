@@ -23,6 +23,7 @@ from forge_python.llm_manager import (
     build_system_prompt,
     expand_prompt,
     prompt_implies_nsfw,
+    resolve_face_lock_path,
     resolve_negative_prompt,
     smart_daily_suggestions,
 )
@@ -599,6 +600,7 @@ async def create_generation(body: GenerationCreate) -> Generation:
             400,
             "Explicit / NSFW generation requires an Adult or 18+ age rating on the influencer.",
         )
+    face_locked = resolve_face_lock_path(looks) is not None
     looks_prompt = build_looks_prompt(
         age=(looks or {}).get("age"),
         ethnicity=(looks or {}).get("ethnicity"),
@@ -609,6 +611,7 @@ async def create_generation(body: GenerationCreate) -> Generation:
         gender=(looks or {}).get("gender"),
         body=body_from_json((looks or {}).get("body_json")),
         for_nsfw=is_nsfw,
+        face_locked=face_locked,
     )
     expanded = expand_prompt(
         body.user_prompt,
@@ -617,6 +620,7 @@ async def create_generation(body: GenerationCreate) -> Generation:
         wardrobe_keywords=None if is_nsfw else wardrobe_keywords,
         system_prompt=(personality or {}).get("system_prompt"),
         is_nsfw=is_nsfw,
+        face_locked=face_locked,
     )
     negative = resolve_negative_prompt(is_nsfw=is_nsfw, user_prompt=body.user_prompt)
     cur = await db.execute(

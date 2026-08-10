@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from PIL import Image
+from PIL import Image, ImageFilter
 
 from forge_python.config import settings
 from forge_python.stub_generator import ASPECT_SIZES, generate_stub_image
@@ -45,7 +45,7 @@ def _soft_noise_canvas(width: int, height: int, base: tuple[int, int, int]) -> I
     assert px is not None
     for y in range(0, height, 2):
         for x in range(0, width, 2):
-            jitter = rng.randint(-18, 18)
+            jitter = rng.randint(-14, 14)
             r = max(0, min(255, base[0] + jitter))
             g = max(0, min(255, base[1] + jitter))
             b = max(0, min(255, base[2] + jitter))
@@ -59,55 +59,77 @@ def _soft_noise_canvas(width: int, height: int, base: tuple[int, int, int]) -> I
     return canvas
 
 
+def _head_crop(src: Image.Image) -> Image.Image:
+    sw, sh = src.size
+    if sh > sw * 1.15:
+        return src.crop((0, 0, sw, int(sh * 0.58)))
+    return src
+
+
 def compose_identity_canvas(
     image: Image.Image,
     width: int,
     height: int,
     *,
-    face_height_ratio: float = 0.36,
+    face_height_ratio: float = 0.5,
 ) -> Image.Image:
-    """Place the locked face on a soft canvas instead of cover-filling the frame.
+    """Build an img2img init that locks the face without locking outfit/pose.
 
-    Cover-resizing a waist-up portrait to 9:16 locks pose/clothes into img2img.
-    A smaller upper-face patch keeps identity while letting the prompt drive scene.
+    Strategy:
+    1) Heavily blur a cover-fit of the reference (weak scene prior).
+    2) Paste a *large sharp* head/shoulders crop in the upper frame.
+    Keep denoise moderate (~0.55–0.68) so identity survives full-body scenes.
     """
     src = image.convert("RGB")
-    # Prefer a head/shoulders crop from the upper portion of portrait refs.
-    sw, sh = src.size
-    if sh > sw * 1.15:
-        head = src.crop((0, 0, sw, int(sh * 0.62)))
-    else:
-        head = src
+    head = _head_crop(src)
 
     avg = head.resize((1, 1), Image.Resampling.BOX).getpixel((0, 0))
     if not isinstance(avg, tuple):
         avg = (110, 110, 120)
-    base = (int(avg[0]), int(avg[1]), int(avg[2]))
-    # Pull backdrop toward neutral so clothing colors don't dominate.
     base = (
-        (base[0] + 140) // 2,
-        (base[1] + 140) // 2,
-        (base[2] + 145) // 2,
+        (int(avg[0]) + 150) // 2,
+        (int(avg[1]) + 150) // 2,
+        (int(avg[2]) + 155) // 2,
     )
-    canvas = _soft_noise_canvas(width, height, base)
 
-    target_h = max(64, int(height * face_height_ratio))
+    filled = _cover_resize(src, width, height)
+    blur_radius = max(18, width // 28)
+    soft = filled.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+    noise = _soft_noise_canvas(width, height, base)
+    canvas = Image.blend(soft, noise, 0.55)
+
+    target_h = max(96, int(height * face_height_ratio))
     scale = target_h / max(head.height, 1)
-    tw = max(64, int(head.width * scale))
+    tw = max(96, int(head.width * scale))
     th = target_h
-    # Keep face from overflowing width.
-    if tw > int(width * 0.72):
-        tw = int(width * 0.72)
-        th = max(64, int(head.height * (tw / max(head.width, 1))))
+    if tw > int(width * 0.88):
+        tw = int(width * 0.88)
+        th = max(96, int(head.height * (tw / max(head.width, 1))))
     face = head.resize((tw, th), Image.Resampling.LANCZOS)
+
+    # Feathered paste so the head blends into the soft body region.
+    mask = Image.new("L", (tw, th), 0)
+    mask_px = mask.load()
+    assert mask_px is not None
+    feather = max(8, min(tw, th) // 12)
+    for y in range(th):
+        for x in range(tw):
+            edge = min(x, y, tw - 1 - x, th - 1 - y)
+            alpha = 255 if edge >= feather else int(255 * (edge / feather))
+            # Soften bottom edge more so shoulders dissolve into the new body.
+            bottom_fade = th - 1 - y
+            if bottom_fade < feather * 2:
+                alpha = min(alpha, int(255 * (bottom_fade / (feather * 2))))
+            mask_px[x, y] = alpha
+
     x = (width - tw) // 2
-    y = max(8, int(height * 0.06))
-    canvas.paste(face, (x, y))
+    y = max(4, int(height * 0.04))
+    canvas.paste(face, (x, y), mask)
     return canvas
 
 
 def denoise_for_prompt(*, is_nsfw: bool, prompt_text: str, meta: dict[str, Any]) -> float:
-    """Higher denoise when the user asks for a big scene/pose change vs the lock shot."""
+    """Moderate denoise only — high values (~0.9) erase face/hair identity."""
     lowered = prompt_text.lower()
     scene_change = any(
         token in lowered
@@ -130,12 +152,15 @@ def denoise_for_prompt(*, is_nsfw: bool, prompt_text: str, meta: dict[str, Any])
         )
     )
     if is_nsfw and scene_change:
-        return float(meta.get("denoise_nsfw_scene", meta.get("denoise_nsfw", 0.92)))
-    if is_nsfw:
-        return float(meta.get("denoise_nsfw", 0.88))
-    if scene_change:
-        return float(meta.get("denoise_scene", 0.88))
-    return float(meta.get("denoise_default", 0.8))
+        value = float(meta.get("denoise_nsfw_scene", 0.68))
+    elif is_nsfw:
+        value = float(meta.get("denoise_nsfw", 0.62))
+    elif scene_change:
+        value = float(meta.get("denoise_scene", 0.65))
+    else:
+        value = float(meta.get("denoise_default", 0.55))
+    # Hard cap: above ~0.72 img2img stops behaving like a face lock.
+    return min(value, 0.72)
 
 
 class ComfyUIClient:

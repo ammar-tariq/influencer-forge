@@ -8,13 +8,12 @@ from collections import deque
 
 from typing import TYPE_CHECKING
 
-from pathlib import Path
-
 from forge_python.comfyui_client import ComfyUIClient
 from forge_python.db import Database, body_from_json
 from forge_python.llm_manager import (
     build_looks_prompt,
     expand_prompt,
+    resolve_face_lock_path,
     resolve_negative_prompt,
 )
 
@@ -141,6 +140,9 @@ class QueueWorker:
                 (influencer["personality_id"],),
             )
         is_nsfw = bool(row.get("is_nsfw"))
+        face_reference = resolve_face_lock_path(looks)
+        face_locked = face_reference is not None
+        body = body_from_json((looks or {}).get("body_json"))
         looks_prompt = build_looks_prompt(
             age=(looks or {}).get("age"),
             ethnicity=(looks or {}).get("ethnicity"),
@@ -149,8 +151,9 @@ class QueueWorker:
             eye_color=(looks or {}).get("eye_color"),
             style=(looks or {}).get("style"),
             gender=(looks or {}).get("gender"),
-            body=body_from_json((looks or {}).get("body_json")),
+            body=body,
             for_nsfw=is_nsfw,
+            face_locked=face_locked,
         ) or (looks or {}).get("base_prompt") or "adult person"
         # Wardrobe fights nude/explicit scenes — only apply when SFW.
         wardrobe_keywords = None
@@ -161,6 +164,7 @@ class QueueWorker:
             wardrobe_keywords=wardrobe_keywords,
             system_prompt=(personality or {}).get("system_prompt"),
             is_nsfw=is_nsfw,
+            face_locked=face_locked,
         )
         negative = resolve_negative_prompt(
             is_nsfw=is_nsfw,
@@ -175,13 +179,6 @@ class QueueWorker:
             (expanded, negative, generation_id),
         )
         require_real = self._require_real.get(generation_id, False)
-        face_reference = None
-        if looks:
-            for key in ("reference_image_path", "base_portrait_path"):
-                candidate = looks.get(key)
-                if candidate and Path(str(candidate)).is_file():
-                    face_reference = str(candidate)
-                    break
         out, thumb, seed, model = await self.comfy.generate(
             generation_id=generation_id,
             prompt=expanded,

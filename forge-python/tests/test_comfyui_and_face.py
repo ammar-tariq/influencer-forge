@@ -90,19 +90,28 @@ def test_stage_face_and_img2img_inject(tmp_path: Path, monkeypatch: pytest.Monke
 
 def test_denoise_ramps_for_scene_change() -> None:
     meta = {
-        "denoise_default": 0.8,
-        "denoise_scene": 0.88,
-        "denoise_nsfw": 0.9,
-        "denoise_nsfw_scene": 0.94,
+        "denoise_default": 0.55,
+        "denoise_scene": 0.65,
+        "denoise_nsfw": 0.62,
+        "denoise_nsfw_scene": 0.68,
     }
-    assert denoise_for_prompt(is_nsfw=False, prompt_text="studio headshot", meta=meta) == 0.8
+    assert denoise_for_prompt(is_nsfw=False, prompt_text="studio headshot", meta=meta) == 0.55
     assert (
         denoise_for_prompt(
             is_nsfw=True,
             prompt_text="full body from behind, bikini, beach",
             meta=meta,
         )
-        == 0.94
+        == 0.68
+    )
+    # Hard cap — never wipe the face lock with near-txt2img denoise.
+    assert (
+        denoise_for_prompt(
+            is_nsfw=True,
+            prompt_text="full body beach",
+            meta={"denoise_nsfw_scene": 0.95},
+        )
+        == 0.72
     )
 
 

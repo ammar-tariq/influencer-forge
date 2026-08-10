@@ -75,12 +75,11 @@ def test_nsfw_expansion_respects_full_body_scene() -> None:
         looks_prompt=looks,
         is_nsfw=True,
     )
-    assert expanded.startswith("full body")
-    assert "waist up" not in expanded
-    assert "match the requested pose" in expanded
+    assert "full body" in expanded
+    assert "photorealistic" in expanded
     neg = resolve_negative_prompt(is_nsfw=True, user_prompt=scene)
     assert "shirt" in neg
-    assert "jeans" in neg
+    assert "cartoon" in neg
 
 
 def test_bikini_prompt_does_not_force_nude() -> None:
@@ -99,6 +98,40 @@ def test_bikini_prompt_does_not_force_nude() -> None:
     neg = resolve_negative_prompt(is_nsfw=True, user_prompt=scene)
     assert "jeans" in neg
     assert "bikini" not in neg
+
+
+def test_face_locked_prompt_leads_with_identity() -> None:
+    expanded = expand_prompt(
+        "full body beach",
+        influencer_name="Xz",
+        looks_prompt="25-year-old adult woman, Brown Long straight hair",
+        is_nsfw=False,
+        face_locked=True,
+    )
+    assert expanded.startswith("same person as reference photo")
+    assert "same hair color and hairstyle" in expanded
+    assert expanded.index("identical face") < expanded.index("full body beach")
+
+
+def test_face_locked_looks_omit_hair_text() -> None:
+    """Wizard 'Red Bob' must not override a curly lock photo."""
+    locked = build_looks_prompt(
+        age=30,
+        ethnicity="Mixed / Multiracial",
+        hair_color="Red",
+        hair_style="Bob",
+        eye_color="Green",
+        style="Sporty",
+        gender="Female",
+        body={"body_type": "Fit", "body_hair": "Hairy", "breast_size": "Very large"},
+        face_locked=True,
+    )
+    assert "Bob" not in locked
+    assert "Green" not in locked
+    assert "Sporty" not in locked
+    assert "Hairy" not in locked
+    assert "Fit" in locked
+    assert "30-year-old" in locked
 
 
 def test_prompt_implies_nsfw() -> None:

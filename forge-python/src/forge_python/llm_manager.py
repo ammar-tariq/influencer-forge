@@ -42,25 +42,32 @@ _GENDER_PHRASE = {
     "trans girl": "trans woman, feminine presentation",
 }
 
-SFW_NEGATIVE = (
+_QUALITY_NEGATIVE = (
     "blurry, low quality, deformed, bad anatomy, extra limbs, watermark, text, logo, "
-    "cropped head only, extreme close-up face only, waist-up only when full body requested"
+    "cartoon, anime, illustration, painting, cgi, 3d render, plastic skin, "
+    "overprocessed, oversharpened, waxy skin, graphic novel"
 )
 
-# Fully unclothed asks — push away everyday clothes.
+SFW_NEGATIVE = (
+    f"{_QUALITY_NEGATIVE}, "
+    "cropped head only, extreme close-up face only"
+)
+
+# Fully unclothed asks — push away everyday clothes (keep list short to avoid mush).
 NSFW_NUDE_NEGATIVE = (
-    "blurry, low quality, deformed, bad anatomy, extra limbs, watermark, text, logo, "
-    "shirt, blouse, jeans, pants, jacket, hoodie, sweater, dress, coat, "
-    "fully clothed, everyday streetwear, covered breasts, covered chest, "
-    "cropped head only, waist-up only when full body requested"
+    f"{_QUALITY_NEGATIVE}, "
+    "shirt, blouse, jeans, jacket, hoodie, sweater, dress, coat, fully clothed streetwear"
 )
 
 # Bikini / lingerie asks — ban street clothes, not the outfit itself.
 NSFW_OUTFIT_NEGATIVE = (
-    "blurry, low quality, deformed, bad anatomy, extra limbs, watermark, text, logo, "
-    "jeans, pants, shirt, blouse, hoodie, sweater, jacket, coat, dress pants, "
-    "fully clothed streetwear, office clothes, winter coat, "
-    "cropped head only, waist-up only when full body requested"
+    f"{_QUALITY_NEGATIVE}, "
+    "jeans, pants, shirt, blouse, hoodie, sweater, jacket, coat, office clothes"
+)
+
+_IDENTITY_LOCK = (
+    "same person as reference photo, identical face, same facial features, "
+    "same eye color, same nose and lips, same hair color and hairstyle"
 )
 
 # Backward-compatible alias used by older tests/docs.
@@ -113,6 +120,19 @@ def build_system_prompt(name: str, bio: str | None, traits: dict[str, str], nich
     )
 
 
+def resolve_face_lock_path(looks: dict[str, Any] | None) -> str | None:
+    """Prefer explicit Lock-this-face portrait, then Face Seed upload."""
+    from pathlib import Path
+
+    if not looks:
+        return None
+    for key in ("base_portrait_path", "reference_image_path"):
+        candidate = looks.get(key)
+        if candidate and Path(str(candidate)).is_file():
+            return str(candidate)
+    return None
+
+
 def build_looks_prompt(
     *,
     age: int | None,
@@ -124,38 +144,66 @@ def build_looks_prompt(
     gender: str | None = None,
     body: dict[str, str] | None = None,
     for_nsfw: bool = False,
+    face_locked: bool = False,
 ) -> str:
+    """Build looks tokens for the prompt.
+
+    When face_locked, omit hair/eyes/style text — the reference image is the source
+    of truth. Wizard fields like \"Red Bob\" otherwise fight a curly lock photo.
+    """
     person = gender_phrase(gender)
     parts: list[str | None] = [
         f"{age}-year-old adult {person}" if age else f"adult {person}",
         ethnicity,
-        f"{hair_color} {hair_style} hair" if hair_color or hair_style else None,
-        f"{eye_color} eyes" if eye_color else None,
     ]
+    if not face_locked:
+        parts.append(f"{hair_color} {hair_style} hair" if hair_color or hair_style else None)
+        parts.append(f"{eye_color} eyes" if eye_color else None)
+
     body = body or {}
-    body_order = (
-        "skin_tone",
-        "height",
-        "body_type",
-        "breast_size",
-        "chest",
-        "waist",
-        "hips",
-        "butt_size",
-        "muscle_tone",
-        "body_hair",
-    )
+    if face_locked:
+        # Shape only — skip noisy tags (body_hair, long muscle essays) that mush quality.
+        body_order = (
+            "skin_tone",
+            "height",
+            "body_type",
+            "breast_size",
+            "chest",
+            "waist",
+            "hips",
+            "butt_size",
+            "muscle_tone",
+        )
+    else:
+        body_order = (
+            "skin_tone",
+            "height",
+            "body_type",
+            "breast_size",
+            "chest",
+            "waist",
+            "hips",
+            "butt_size",
+            "muscle_tone",
+            "body_hair",
+        )
     for key in body_order:
         val = body.get(key)
         if not val:
             continue
+        # Skip "Not applicable" style placeholders
+        if str(val).strip().lower() in {"not applicable", "n/a", "none", "-"}:
+            continue
         label = key.replace("_", " ")
         parts.append(f"{label}: {val}")
-    # Any extra custom body keys
-    for key, val in body.items():
-        if key in body_order or not val:
-            continue
-        parts.append(f"{key.replace('_', ' ')}: {val}")
+    if not face_locked:
+        for key, val in body.items():
+            if key in body_order or not val:
+                continue
+            parts.append(f"{key.replace('_', ' ')}: {val}")
+
+    if face_locked:
+        return ", ".join(p for p in parts if p)
 
     if for_nsfw:
         parts.append("same consistent face and body")
@@ -164,6 +212,14 @@ def build_looks_prompt(
             parts.append(f"{style} fashion aesthetic")
         parts.append("consistent face and body identity")
     return ", ".join(p for p in parts if p)
+
+
+def _compact_scene(scene: str, *, max_chars: int = 220) -> str:
+    """Keep user scene short — long stacked presets turn RealVisXL graphic/mushy."""
+    cleaned = re.sub(r"\s+", " ", scene).strip(" ,")
+    if len(cleaned) <= max_chars:
+        return cleaned
+    return cleaned[: max_chars - 1].rsplit(" ", 1)[0] + "…"
 
 
 def expand_prompt(
@@ -175,40 +231,36 @@ def expand_prompt(
     system_prompt: str | None = None,
     provider: str = "template",
     is_nsfw: bool = False,
+    face_locked: bool = False,
 ) -> str:
     """Expand a short user / preset prompt into a richer generation prompt.
 
     Scene/framing/pose should already be in user_prompt from the UI presets.
-    Do not force headshot/"portrait" framing — that blocked full-body gens.
+    When face_locked, lead with identity tokens and keep the prompt shorter so
+    img2img does not drift hair/face or go overcooked/graphic.
     """
     _ = provider, system_prompt
-    scene = user_prompt.strip() or "full body standing pose, studio lighting"
+    scene = _compact_scene(user_prompt.strip() or "full body standing pose, studio lighting")
+    identity = f"{_IDENTITY_LOCK}, {influencer_name}, {looks_prompt}" if face_locked else f"{influencer_name}, {looks_prompt}"
+    quality = "photorealistic photograph, natural skin texture, sharp focus"
 
     if is_nsfw:
         outfit = prompt_requests_revealing_outfit(scene)
         wants_nude = prompt_requests_full_nude(scene)
-        # Never stack "nude" on top of bikini/lingerie — that fights the outfit.
         extra = ""
         if not outfit and not wants_nude:
             extra = "nude, bare skin, "
         elif outfit and not wants_nude:
-            extra = "skin visible, wet look optional, "
-        framing = ""
-        if "full body" in scene.lower() or "head to toe" in scene.lower():
-            framing = "full body head to toe in frame, not a waist-up crop, "
-        elif "from behind" in scene.lower():
-            framing = "view from behind, face looking over shoulder, "
-        return (
-            f"{scene}, {extra}{framing}{influencer_name}, {looks_prompt}, "
-            f"photorealistic adult photograph, natural skin texture, "
-            f"sharp focus, detailed anatomy, match the requested pose and outfit"
-        )
+            extra = "skin visible, "
+        # Identity first when locked — CLIP attends strongest to early tokens.
+        if face_locked:
+            return f"{identity}, {scene}, {extra}{quality}"
+        return f"{scene}, {extra}{identity}, {quality}"
 
     wardrobe = f", wearing {wardrobe_keywords}" if wardrobe_keywords else ""
-    return (
-        f"{scene}, {influencer_name}, {looks_prompt}{wardrobe}, "
-        f"photorealistic, sharp focus, social media quality, entire subject visible in frame"
-    )
+    if face_locked:
+        return f"{identity}, {scene}{wardrobe}, {quality}"
+    return f"{scene}, {identity}{wardrobe}, {quality}"
 
 
 def resolve_negative_prompt(

@@ -33,9 +33,10 @@
 
 When a look has a **Face Seed** upload or a **base portrait** (locked on the influencer profile), generation uses `image_img2img.json`:
 
-1. Reference is staged as a **head crop on a soft canvas** (not stretched to fill the frame — that used to lock pose/clothes).
-2. ComfyUI LoadImage → VAEEncode → KSampler with higher denoise for scene changes (~0.88–0.94 NSFW full-body / beach / etc.).
-3. History `model_used` shows `sdxl-img2img`
+1. Reference is staged as a **large sharp head** over a blurred body prior (keeps face/hair; frees pose/outfit).
+2. ComfyUI LoadImage → VAEEncode → KSampler with **moderate denoise** (~0.55–0.68, hard-capped at 0.72). Higher values were wiping identity and turning detailed prompts graphic.
+3. Face-locked prompts lead with identity tokens and stay short; CFG ~5.
+4. History `model_used` shows `sdxl-img2img`
 
 Bikini/lingerie prompts no longer auto-append `nude` or ban the outfit in negatives. Upload a Face Seed for the strongest lock. Without a reference, gens stay plain txt2img (`sdxl`). InstantID/IP-Adapter remains a later upgrade.
 
