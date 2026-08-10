@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
 import { useSystemStats } from "../hooks/useSystemStats";
@@ -8,6 +9,7 @@ function settingMap(items: { key: string; value: string }[] | undefined) {
 }
 
 export function Settings() {
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const settings = useQuery({ queryKey: ["settings"], queryFn: api.listSettings });
   const map = settingMap(settings.data);
@@ -21,7 +23,10 @@ export function Settings() {
   const resume = useMutation({ mutationFn: api.resumeQueue });
   const [confirmText, setConfirmText] = useState("");
   const [includeModels, setIncludeModels] = useState(false);
+  const [armed, setArmed] = useState(false);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
+
+  const confirmOk = confirmText.trim().toUpperCase() === "RESET";
 
   const save = useMutation({
     mutationFn: async (form: FormData) => {
@@ -36,12 +41,19 @@ export function Settings() {
 
   const reset = useMutation({
     mutationFn: () => api.fullReset(includeModels),
-    onSuccess: (res) => {
+    onSuccess: async (res) => {
       setConfirmText("");
+      setArmed(false);
       setResetMessage(`Reset complete. Data dir: ${res.data_dir}`);
-      void qc.invalidateQueries();
+      // Drop stale lists so Studio/Library don't keep showing wiped influencers.
+      qc.clear();
+      await qc.invalidateQueries();
+      navigate("/", { replace: true });
     },
-    onError: (err: Error) => setResetMessage(err.message),
+    onError: (err: Error) => {
+      setArmed(false);
+      setResetMessage(err.message);
+    },
   });
 
   return (
@@ -150,25 +162,57 @@ export function Settings() {
           <label>Type RESET to confirm</label>
           <input
             value={confirmText}
-            onChange={(e) => setConfirmText(e.target.value)}
+            onChange={(e) => {
+              setConfirmText(e.target.value);
+              setArmed(false);
+            }}
             placeholder="RESET"
             autoComplete="off"
+            spellCheck={false}
           />
         </div>
-        {resetMessage && <p className="mb-3 text-sm text-[var(--accent)]">{resetMessage}</p>}
-        <button
-          className="btn"
-          type="button"
-          style={{ background: "var(--danger)", color: "#1a0a0a" }}
-          disabled={confirmText !== "RESET" || reset.isPending}
-          onClick={() => {
-            if (window.confirm("This permanently erases local InfluencerForge data. Continue?")) {
-              reset.mutate();
-            }
-          }}
-        >
-          {reset.isPending ? "Resetting…" : "Reset all local data"}
-        </button>
+        {resetMessage && (
+          <p
+            className={`mb-3 text-sm ${
+              reset.isError ? "text-[var(--danger)]" : "text-[var(--accent)]"
+            }`}
+          >
+            {resetMessage}
+          </p>
+        )}
+        {/* Native window.confirm is a silent no-op in macOS Tauri WKWebView — use in-app arming. */}
+        {!armed ? (
+          <button
+            className="btn"
+            type="button"
+            style={{ background: "var(--danger)", color: "#1a0a0a" }}
+            disabled={!confirmOk || reset.isPending}
+            onClick={() => setArmed(true)}
+          >
+            Reset all local data
+          </button>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm text-[var(--danger)]">Erase everything now?</p>
+            <button
+              className="btn"
+              type="button"
+              style={{ background: "var(--danger)", color: "#1a0a0a" }}
+              disabled={reset.isPending}
+              onClick={() => reset.mutate()}
+            >
+              {reset.isPending ? "Resetting…" : "Yes, erase all data"}
+            </button>
+            <button
+              className="btn secondary"
+              type="button"
+              disabled={reset.isPending}
+              onClick={() => setArmed(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

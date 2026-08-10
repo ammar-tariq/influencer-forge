@@ -32,6 +32,7 @@ export function InfluencerDetail() {
   const [identityPrompt, setIdentityPrompt] = useState(DEFAULT_IDENTITY_PROMPT);
   const [faceFile, setFaceFile] = useState<File | null>(null);
   const [assignOutfit, setAssignOutfit] = useState<number | "">("");
+  const [deleteArmed, setDeleteArmed] = useState(false);
 
   const detail = useQuery({
     queryKey: ["influencer", influencerId],
@@ -250,21 +251,33 @@ export function InfluencerDetail() {
             <Link className="btn secondary" to="/edit-posts">
               Edit posts
             </Link>
-            <button
-              className="btn secondary"
-              disabled={remove.isPending}
-              onClick={() => {
-                if (
-                  confirm(
-                    `Delete ${inf.name} and all their posts permanently? This cannot be undone.`,
-                  )
-                ) {
-                  remove.mutate();
-                }
-              }}
-            >
-              Delete
-            </button>
+            {!deleteArmed ? (
+              <button
+                className="btn secondary"
+                disabled={remove.isPending}
+                onClick={() => setDeleteArmed(true)}
+              >
+                Delete
+              </button>
+            ) : (
+              <>
+                <button
+                  className="btn"
+                  style={{ background: "var(--danger)", color: "#1a0a0a" }}
+                  disabled={remove.isPending}
+                  onClick={() => remove.mutate()}
+                >
+                  {remove.isPending ? "Deleting…" : `Yes, delete ${inf.name}`}
+                </button>
+                <button
+                  className="btn secondary"
+                  disabled={remove.isPending}
+                  onClick={() => setDeleteArmed(false)}
+                >
+                  Cancel
+                </button>
+              </>
+            )}
           </div>
         </div>
       </header>

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Full reset / delete confirmations no longer use `window.confirm` (silent no-op in macOS Tauri); in-app confirm + cache clear after reset.
+
 ### Changed
 
 - System monitor cards (CPU/RAM/queue, ComfyUI, pause/resume) live under Settings; `/monitor` redirects there.

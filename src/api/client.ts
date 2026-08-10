@@ -23,7 +23,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || res.statusText);
+    let message = text || res.statusText;
+    try {
+      const body = JSON.parse(text) as { detail?: unknown };
+      if (typeof body.detail === "string") message = body.detail;
+      else if (body.detail != null) message = JSON.stringify(body.detail);
+    } catch {
+      // keep raw body
+    }
+    throw new Error(message);
   }
   return res.json() as Promise<T>;
 }

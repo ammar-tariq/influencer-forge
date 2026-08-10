@@ -51,6 +51,12 @@ def reset_app_data(settings: Settings, *, include_app_models: bool = False) -> d
     report["removed"]["thumbnails"] = _wipe_dir(settings.thumbnails_dir)
     report["removed"]["uploads"] = _wipe_dir(settings.uploads_dir)
     report["removed"]["vault"] = _wipe_dir(settings.vault_dir)
+    report["removed"]["vault_cache"] = _wipe_dir(settings.media_dir / "vault_cache")
+
+    # Pre-media layout leftover (data_dir/uploads)
+    legacy = settings.legacy_uploads_dir
+    if legacy.exists() and legacy.resolve() != settings.uploads_dir.resolve():
+        report["removed"]["legacy_uploads"] = _wipe_dir(legacy)
 
     if include_app_models:
         report["removed"]["models"] = _wipe_dir(settings.models_dir)
