@@ -65,12 +65,6 @@ async def test_system_reset_api(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     await orch.db.close()
     orch.db.db_path = config.settings.db_path
     await orch.db.connect()
-    await orch.db.execute(
-        """
-        INSERT INTO personalities(name, bio, traits_json, niche, age_rating)
-        VALUES ('T', '', '{}', 'Lifestyle', 'Adult')
-        """
-    )
     orch.vault = VaultService(orch.db)
     orch.queue = QueueWorker(orch.db, vault=orch.vault)
     orch.schedules = ScheduleService(orch.db)

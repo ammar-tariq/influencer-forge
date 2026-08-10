@@ -370,7 +370,7 @@ export function InfluencerEditPanels({ detail, onSaved }: Props) {
               <label>Age ({age})</label>
               <input
                 type="range"
-                min={18}
+                min={12}
                 max={80}
                 value={age}
                 onChange={(e) => setAge(Number(e.target.value))}

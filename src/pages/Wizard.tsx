@@ -301,7 +301,7 @@ export function Wizard() {
           />
           <div className="field">
             <label>Age ({age})</label>
-            <input type="range" min={18} max={80} value={age} onChange={(e) => setAge(Number(e.target.value))} />
+            <input type="range" min={12} max={80} value={age} onChange={(e) => setAge(Number(e.target.value))} />
           </div>
           <SelectWithOther
             label="Ethnicity / appearance"

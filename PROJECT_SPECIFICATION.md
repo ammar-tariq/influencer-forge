@@ -113,7 +113,7 @@ Stores the physical "body" of the influencer (the face seed).
 | :--- | :--- | :--- | :--- |
 | `id` | INTEGER | PRIMARY KEY AUTOINCREMENT | Unique identifier |
 | `name` | TEXT | NOT NULL | e.g., "Elena's Look" |
-| `age` | INTEGER | | 18-80 |
+| `age` | INTEGER | | 12-80 |
 | `gender` | TEXT | | "Female", "Male", "Trans girl", or custom |
 | `ethnicity` | TEXT | | "Caucasian", "East Asian", "Black / African", etc. |
 | `nationality` | TEXT | | "Russian", "Chinese", "American", etc. — cultural look cue in prompts |

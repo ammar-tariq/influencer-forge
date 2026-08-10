@@ -48,7 +48,7 @@ class PersonalityUpdate(BaseModel):
 
 class LooksCreate(BaseModel):
     name: str
-    age: int | None = 25
+    age: int | None = Field(default=25, ge=12, le=80)
     gender: str | None = "Female"
     ethnicity: str | None = None
     nationality: str | None = None
@@ -72,7 +72,7 @@ class Looks(LooksCreate):
 
 class LooksUpdate(BaseModel):
     name: str | None = None
-    age: int | None = None
+    age: int | None = Field(default=None, ge=12, le=80)
     gender: str | None = None
     ethnicity: str | None = None
     nationality: str | None = None
