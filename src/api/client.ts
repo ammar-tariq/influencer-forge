@@ -297,6 +297,29 @@ export const api = {
         triggered_at?: string;
       }>;
     }>("/api/schedules/reminders"),
+  /** Download .ics for Google Calendar / Apple Calendar import. */
+  downloadSchedulesIcs: async (scheduleId?: number) => {
+    const path =
+      scheduleId == null
+        ? "/api/schedules/export.ics"
+        : `/api/schedules/${scheduleId}/export.ics`;
+    const filename =
+      scheduleId == null
+        ? "influencerforge-schedules.ics"
+        : `influencerforge-schedule-${scheduleId}.ics`;
+    const res = await fetch(`${BASE}${path}`);
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || res.statusText);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
 
   vaultStatus: () => request<VaultStatus>("/api/vault/status"),
   vaultSetup: (pin: string) =>

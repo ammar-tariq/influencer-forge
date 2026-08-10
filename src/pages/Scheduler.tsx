@@ -52,16 +52,36 @@ export function Scheduler() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["schedules"] }),
   });
 
+  const exportIcs = useMutation({
+    mutationFn: (scheduleId?: number) => api.downloadSchedulesIcs(scheduleId),
+    onSuccess: () =>
+      setMessage("Downloaded .ics — import into Google Calendar or Apple Calendar."),
+    onError: (err: Error) => setMessage(err.message),
+  });
+
   const due = reminders.data?.reminders ?? [];
+  const hasSchedules = (schedules.data ?? []).length > 0;
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-3xl tracking-tight">Scheduler</h1>
-        <p className="muted mt-1">
-          Local reminders to create posts. Calendar sync is not wired yet — due items show here and
-          on Studio home.
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-3xl tracking-tight">Scheduler</h1>
+          <p className="muted mt-1">
+            Local reminders to create posts. Export .ics to import into Google or Apple Calendar —
+            due items also show here and on Studio home.
+          </p>
+        </div>
+        {hasSchedules && (
+          <button
+            type="button"
+            className="btn secondary"
+            disabled={exportIcs.isPending}
+            onClick={() => exportIcs.mutate(undefined)}
+          >
+            {exportIcs.isPending ? "Exporting…" : "Export all .ics"}
+          </button>
+        )}
       </header>
 
       {due.length > 0 && (
@@ -169,6 +189,13 @@ export function Scheduler() {
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
+                <button
+                  className="btn secondary"
+                  disabled={exportIcs.isPending}
+                  onClick={() => exportIcs.mutate(s.id)}
+                >
+                  Export .ics
+                </button>
                 <button
                   className="btn secondary"
                   disabled={toggle.isPending}

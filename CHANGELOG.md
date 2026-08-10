@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Scheduler ICS export (`.ics`) for Google/Apple Calendar import — all schedules or one.
 - System tray Pause/Resume queue wired to orchestrator via Tauri events.
 - Claude (Haiku) and Gemini (Flash) scene enrich alongside OpenAI; template fallback on failure.
 - Library lightbox crop: 10%/20% margin presets + numeric x1,y1,x2,y2.

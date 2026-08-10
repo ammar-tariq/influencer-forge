@@ -13,7 +13,7 @@ from typing import Any
 import uvicorn
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from forge_python import __version__
 from forge_python.config import settings
@@ -62,6 +62,7 @@ from forge_python.models import (
     WardrobeCreate,
     WardrobeItem,
 )
+from forge_python.ics_export import build_calendar
 from forge_python.post_processing import process_image
 from forge_python.queue_worker import QueueWorker
 from forge_python.readiness import collect_readiness
@@ -1257,6 +1258,38 @@ async def delete_schedule(schedule_id: int) -> dict[str, str]:
 @app.get("/api/schedules/reminders")
 async def schedule_reminders() -> dict[str, Any]:
     return {"reminders": _require_schedules().pop_reminders()}
+
+
+async def _influencer_names() -> dict[int, str]:
+    rows = await db.fetchall("SELECT id, name FROM influencers")
+    return {int(r["id"]): str(r["name"]) for r in rows}
+
+
+@app.get("/api/schedules/export.ics")
+async def export_schedules_ics() -> Response:
+    """Download all active schedules as an .ics for Google/Apple Calendar import."""
+    rows = await db.fetchall("SELECT * FROM schedules WHERE is_active = 1 ORDER BY id ASC")
+    ics = build_calendar(list(rows), names=await _influencer_names())
+    return Response(
+        content=ics,
+        media_type="text/calendar; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="influencerforge-schedules.ics"'},
+    )
+
+
+@app.get("/api/schedules/{schedule_id}/export.ics")
+async def export_schedule_ics(schedule_id: int) -> Response:
+    row = await db.fetchone("SELECT * FROM schedules WHERE id = ?", (schedule_id,))
+    if not row:
+        raise HTTPException(404, "Schedule not found")
+    ics = build_calendar([row], names=await _influencer_names())
+    return Response(
+        content=ics,
+        media_type="text/calendar; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="influencerforge-schedule-{schedule_id}.ics"'
+        },
+    )
 
 
 # --- Vault ---

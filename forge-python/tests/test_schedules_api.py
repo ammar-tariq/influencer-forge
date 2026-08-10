@@ -106,3 +106,30 @@ async def test_schedule_create_patch_delete(client: AsyncClient) -> None:
     assert deleted.status_code == 200
     listed = await client.get("/api/schedules")
     assert all(s["id"] != sid for s in listed.json())
+
+
+@pytest.mark.asyncio
+async def test_schedule_ics_export(client: AsyncClient) -> None:
+    iid = await _influencer(client)
+    created = await client.post(
+        "/api/schedules",
+        json={
+            "influencer_id": iid,
+            "schedule_time": "14:00:00",
+            "frequency": "weekly",
+            "prompt_template": "outfit of the day",
+        },
+    )
+    assert created.status_code == 200
+    sid = created.json()["id"]
+
+    one = await client.get(f"/api/schedules/{sid}/export.ics")
+    assert one.status_code == 200
+    assert "text/calendar" in one.headers.get("content-type", "")
+    assert "BEGIN:VCALENDAR" in one.text
+    assert "FREQ=WEEKLY" in one.text
+    assert "outfit of the day" in one.text
+
+    all_ics = await client.get("/api/schedules/export.ics")
+    assert all_ics.status_code == 200
+    assert f"iforge-schedule-{sid}@localhost" in all_ics.text

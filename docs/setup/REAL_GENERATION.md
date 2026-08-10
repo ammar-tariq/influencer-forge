@@ -116,7 +116,7 @@ Desktop builds expose a tray menu (Show / Pause queue / Resume queue / Quit). Pa
 
 ## Scheduler & Library edits
 
-- **Scheduler**: local reminders (`GET /api/reminders`); pause/resume/delete schedules; due items deep-link to Create post with the template in notes.
+- **Scheduler**: local reminders (`GET /api/schedules/reminders`); pause/resume/delete schedules; due items deep-link to Create post with the template in notes. Export `.ics` via `GET /api/schedules/export.ics` (or per-schedule) for Google/Apple Calendar import (no OAuth).
 - **Library**: image generations support rotate ±90°, margin/numeric crop, watermark, and overlay via `POST /api/post-process` (writes `{id}_edited.png`).
 
 ## Dev: app “crashes” mid-generation
