@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import subprocess
+import sys
 import uuid
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,23 @@ from forge_python.config import settings
 from forge_python.stub_generator import ASPECT_SIZES, generate_stub_image
 
 logger = logging.getLogger(__name__)
+
+# SDXL AnimateDiff at full image res + FaceID OOMs Apple Silicon — keep video lighter.
+VIDEO_ASPECT_SIZES = {
+    "9:16": (384, 640),
+    "16:9": (640, 384),
+    "1:1": (512, 512),
+}
+
+
+def _video_faceid_enabled() -> bool:
+    """FaceID+AnimateDiff regularly kills ComfyUI on Mac; opt-in only."""
+    return os.environ.get("IFORGE_VIDEO_FACEID", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
 
 def _cover_resize(image: Image.Image, width: int, height: int) -> Image.Image:
@@ -206,7 +224,16 @@ class ComfyUIClient:
             "127.0.0.1",
             "--port",
             str(settings.comfyui_port),
+            "--force-fp16",
         ]
+        if sys.platform == "darwin":
+            cmd.append("--use-split-cross-attention")
+        # Prefer Homebrew ffmpeg for Video Helper Suite when spawning from the app.
+        brew_bin = "/opt/homebrew/bin"
+        if Path(brew_bin).is_dir() and brew_bin not in env.get("PATH", ""):
+            env["PATH"] = f"{brew_bin}:{env.get('PATH', '')}"
+        # Reduce MPS allocator crashes under AnimateDiff peak memory.
+        env.setdefault("PYTORCH_MPS_HIGH_WATERMARK_RATIO", "0.0")
         self._process = subprocess.Popen(
             cmd,
             cwd=str(root),
@@ -300,6 +327,12 @@ class ComfyUIClient:
         if size_node in prompt:
             prompt[size_node].setdefault("inputs", {})["width"] = width
             prompt[size_node].setdefault("inputs", {})["height"] = height
+            frame_count = meta.get("frame_count")
+            if frame_count is not None:
+                try:
+                    prompt[size_node].setdefault("inputs", {})["batch_size"] = int(frame_count)
+                except (TypeError, ValueError):
+                    pass
         if checkpoint_name and ckpt_node in prompt:
             prompt[ckpt_node].setdefault("inputs", {})["ckpt_name"] = checkpoint_name
         if image_filename and image_node in prompt:
@@ -393,6 +426,10 @@ class ComfyUIClient:
         )
 
         width, height = ASPECT_SIZES.get(aspect_ratio, ASPECT_SIZES["9:16"])
+        if workflow_type == "video":
+            width, height = VIDEO_ASPECT_SIZES.get(
+                aspect_ratio, VIDEO_ASPECT_SIZES["9:16"]
+            )
         use_img2img = False
         use_faceid = False
         image_filename: str | None = None
@@ -414,8 +451,10 @@ class ComfyUIClient:
                 bundle["prompt"][motion_node].setdefault("inputs", {})["model_name"] = motion.name
             weights = faceid_weights_present()
             node_ok = ipadapter_custom_node_installed()
+            want_faceid = _video_faceid_enabled()
             can_faceid = (
-                bool(face_reference)
+                want_faceid
+                and bool(face_reference)
                 and Path(face_reference).is_file()
                 and weights["ok"]
                 and node_ok
@@ -452,7 +491,13 @@ class ComfyUIClient:
                         evolved_node,
                         0,
                     ]
-                if face_reference and Path(face_reference).is_file():
+                if face_reference and Path(face_reference).is_file() and not want_faceid:
+                    logger.info(
+                        "Video gen %s: skipping FaceID (set IFORGE_VIDEO_FACEID=1 to enable) "
+                        "— AnimateDiff alone is more stable on Apple Silicon",
+                        generation_id,
+                    )
+                elif face_reference and Path(face_reference).is_file():
                     logger.info(
                         "Video gen %s: FaceID unavailable — AnimateDiff without identity lock",
                         generation_id,

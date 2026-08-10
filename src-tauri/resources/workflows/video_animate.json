@@ -1,6 +1,6 @@
 {
   "name": "video_animate",
-  "description": "AnimateDiff Evolved Gen2 short clip (SDXL motion). Optional IP-Adapter FaceID when face-locked. Requires ComfyUI-AnimateDiff-Evolved + Video Helper Suite.",
+  "description": "AnimateDiff Evolved Gen2 short clip (SDXL motion), Mac-safe defaults (8 frames @ 384x640). Optional FaceID via IFORGE_VIDEO_FACEID=1. Requires ComfyUI-AnimateDiff-Evolved + Video Helper Suite + ffmpeg.",
   "stub": false,
   "model": "animate_diff",
   "meta": {
@@ -23,7 +23,7 @@
       "VHS_VideoCombine"
     ],
     "motion_module": "mm_sdxl_v10_beta.safetensors",
-    "frame_count": 16,
+    "frame_count": 8,
     "ipadapter_file": "ip-adapter-faceid-plusv2_sdxl.bin",
     "clip_vision_file": "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
   },
@@ -32,8 +32,8 @@
       "class_type": "KSampler",
       "inputs": {
         "seed": 0,
-        "steps": 20,
-        "cfg": 5.5,
+        "steps": 12,
+        "cfg": 5.0,
         "sampler_name": "euler",
         "scheduler": "normal",
         "denoise": 1,
@@ -52,9 +52,9 @@
     "5": {
       "class_type": "EmptyLatentImage",
       "inputs": {
-        "width": 576,
-        "height": 1024,
-        "batch_size": 16
+        "width": 384,
+        "height": 640,
+        "batch_size": 8
       }
     },
     "6": {
@@ -115,8 +115,8 @@
         "ipadapter": ["12", 0],
         "image": ["10", 0],
         "clip_vision": ["13", 0],
-        "weight": 0.7,
-        "weight_faceidv2": 1.0,
+        "weight": 0.55,
+        "weight_faceidv2": 0.85,
         "weight_type": "linear",
         "combine_embeds": "concat",
         "start_at": 0.0,

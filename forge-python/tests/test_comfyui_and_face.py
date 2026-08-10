@@ -9,6 +9,41 @@ from forge_python.comfyui_client import ComfyUIClient, denoise_for_prompt
 from forge_python.face_seed import embedding_present, extract_face_embedding
 
 
+def test_video_workflow_mac_safe_defaults() -> None:
+    root = Path(__file__).resolve().parents[2] / "src-tauri" / "resources" / "workflows"
+    data = json.loads((root / "video_animate.json").read_text(encoding="utf-8"))
+    assert data["meta"]["frame_count"] == 8
+    assert data["prompt"]["5"]["inputs"]["batch_size"] == 8
+    assert data["prompt"]["5"]["inputs"]["width"] <= 384
+    assert data["prompt"]["3"]["inputs"]["steps"] <= 12
+
+
+def test_inject_prompt_applies_video_frame_count() -> None:
+    client = ComfyUIClient()
+    bundle = {
+        "meta": {
+            "positive_node": "6",
+            "negative_node": "7",
+            "seed_node": "3",
+            "size_node": "5",
+            "frame_count": 8,
+        },
+        "prompt": {
+            "3": {"class_type": "KSampler", "inputs": {"seed": 1}},
+            "5": {
+                "class_type": "EmptyLatentImage",
+                "inputs": {"width": 1, "height": 1, "batch_size": 16},
+            },
+            "6": {"class_type": "CLIPTextEncode", "inputs": {"text": "x"}},
+            "7": {"class_type": "CLIPTextEncode", "inputs": {"text": "y"}},
+        },
+    }
+    prompt = client.inject_prompt(bundle, positive="hi", seed=2, width=384, height=640)
+    assert prompt["5"]["inputs"]["width"] == 384
+    assert prompt["5"]["inputs"]["height"] == 640
+    assert prompt["5"]["inputs"]["batch_size"] == 8
+
+
 def test_shipped_faceid_workflows_include_insightface_model_name() -> None:
     root = Path(__file__).resolve().parents[2] / "src-tauri" / "resources" / "workflows"
     for name in ("image_ipadapter_faceid.json", "video_animate.json"):
