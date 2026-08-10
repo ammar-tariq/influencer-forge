@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- FaceID / AnimateDiff workflows: set InsightFace `model_name` to `buffalo_l` (ComfyUI 400: required input missing).
 - Full reset / delete confirmations no longer use `window.confirm` (silent no-op in macOS Tauri); in-app confirm + cache clear after reset.
 
 ### Changed

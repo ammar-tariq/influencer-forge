@@ -9,6 +9,18 @@ from forge_python.comfyui_client import ComfyUIClient, denoise_for_prompt
 from forge_python.face_seed import embedding_present, extract_face_embedding
 
 
+def test_shipped_faceid_workflows_include_insightface_model_name() -> None:
+    root = Path(__file__).resolve().parents[2] / "src-tauri" / "resources" / "workflows"
+    for name in ("image_ipadapter_faceid.json", "video_animate.json"):
+        path = root / name
+        if not path.is_file():
+            continue
+        data = json.loads(path.read_text(encoding="utf-8"))
+        node = data["prompt"]["15"]
+        assert node["class_type"] == "IPAdapterInsightFaceLoader"
+        assert node["inputs"].get("model_name") == "buffalo_l"
+
+
 def test_inject_prompt_updates_nodes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     workflows = tmp_path / "workflows"
     workflows.mkdir()

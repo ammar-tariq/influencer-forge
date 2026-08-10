@@ -117,7 +117,8 @@
     "15": {
       "class_type": "IPAdapterInsightFaceLoader",
       "inputs": {
-        "provider": "CPU"
+        "provider": "CPU",
+        "model_name": "buffalo_l"
       }
     }
   }
