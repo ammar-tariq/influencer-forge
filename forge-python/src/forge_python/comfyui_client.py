@@ -53,8 +53,12 @@ class ComfyUIClient:
         if self._process and self._process.poll() is None:
             return True
         env = os.environ.copy()
+        venv_python = root / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+        python_exec = env.get("IFORGE_COMFYUI_PYTHON") or (
+            str(venv_python) if venv_python.exists() else "python3"
+        )
         cmd = [
-            env.get("IFORGE_COMFYUI_PYTHON", "python3"),
+            python_exec,
             str(main_py),
             "--listen",
             "127.0.0.1",

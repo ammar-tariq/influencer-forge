@@ -10,13 +10,16 @@ def test_find_checkpoints(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
 
     ckpt_dir = tmp_path / "ComfyUI" / "models" / "checkpoints"
     ckpt_dir.mkdir(parents=True)
-    fake = ckpt_dir / "sd_xl_base_1.0.safetensors"
-    fake.write_bytes(b"not-a-real-model")
+    fake = ckpt_dir / "RealVisXL_V5.0_fp16.safetensors"
+    # Readiness ignores tiny marker files; create a sparse-ish large file via truncate.
+    with fake.open("wb") as fh:
+        fh.truncate(120_000_000)
     monkeypatch.setattr(config.settings, "comfyui_root", tmp_path / "ComfyUI")
     monkeypatch.setattr(config.settings, "models_dir", tmp_path / "models")
+    monkeypatch.setattr(config.settings, "extra_model_dirs", [])
     monkeypatch.setattr("forge_python.readiness.settings", config.settings)
     found = find_checkpoints()
-    assert any(p.name == "sd_xl_base_1.0.safetensors" for p in found)
+    assert any(p.name == "RealVisXL_V5.0_fp16.safetensors" for p in found)
 
 
 def test_workflow_ready_true() -> None:

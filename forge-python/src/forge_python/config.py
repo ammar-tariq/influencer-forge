@@ -62,6 +62,9 @@ class Settings:
                 str(Path(__file__).resolve().parents[3] / "src-tauri" / "resources" / "workflows"),
             )
         )
+        # Colon-separated extra dirs to scan for single-file checkpoints (e.g. /Volumes/external/hfModels)
+        extra = os.environ.get("IFORGE_EXTRA_MODEL_DIRS", "/Volumes/external/hfModels")
+        self.extra_model_dirs = [Path(p) for p in extra.split(":") if p.strip()]
 
     def ensure_directories(self) -> None:
         for path in (

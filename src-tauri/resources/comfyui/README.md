@@ -9,11 +9,16 @@ git clone --depth 1 https://github.com/comfyanonymous/ComfyUI.git ComfyUI
 
 ## Make real generation work
 
-1. **Checkpoint** — download SDXL (large) into:
+1. **Checkpoint** — put a single-file SDXL `.safetensors` in:
 
-   `ComfyUI/models/checkpoints/sd_xl_base_1.0.safetensors`
+   `ComfyUI/models/checkpoints/`
 
-   Official / community mirrors are fine; do **not** commit the file.
+   Or keep models elsewhere (e.g. `/Volumes/external/hfModels`) and symlink / set
+   `IFORGE_EXTRA_MODEL_DIRS`. This machine uses:
+
+   `RealVisXL_V5.0_fp16.safetensors` → linked from `/Volumes/external/hfModels/RealVisXL_V5.0/`
+
+   Diffusers folders (like `ideogram/`) are **not** usable by the current CheckpointLoader workflow.
 
 2. **Enable** before launching:
 

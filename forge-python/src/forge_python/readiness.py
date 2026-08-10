@@ -12,11 +12,29 @@ from forge_python.config import settings
 CHECKPOINT_GLOBS = ("*.safetensors", "*.ckpt", "*.pt")
 
 
+def _is_likely_checkpoint(path: Path) -> bool:
+    """Filter out Diffusers shard files; keep single-file SDXL/SD checkpoints."""
+    name = path.name.lower()
+    if name.startswith(".") or name == "put_checkpoints_here":
+        return False
+    # Ignore common non-checkpoint safetensors from Diffusers trees
+    if any(part in {"vae", "text_encoder", "transformer", "unconditional_transformer"} for part in path.parts):
+        return False
+    try:
+        # Full SDXL fp16 checkpoints are multi-GB; skip tiny marker files
+        if path.stat().st_size < 100_000_000:
+            return False
+    except OSError:
+        return False
+    return True
+
+
 def find_checkpoints() -> list[Path]:
     roots = [
         settings.comfyui_root / "models" / "checkpoints",
         settings.models_dir / "checkpoints",
         settings.models_dir,
+        *settings.extra_model_dirs,
     ]
     found: list[Path] = []
     for root in roots:
@@ -25,10 +43,12 @@ def find_checkpoints() -> list[Path]:
         for pattern in CHECKPOINT_GLOBS:
             found.extend(sorted(root.glob(pattern)))
             found.extend(sorted(root.glob(f"**/{pattern}")))
-    # de-dupe preserving order
+    # de-dupe preserving order; prefer ComfyUI checkpoints dir first
     seen: set[str] = set()
     unique: list[Path] = []
     for path in found:
+        if not _is_likely_checkpoint(path):
+            continue
         key = str(path.resolve())
         if key in seen:
             continue
@@ -75,8 +95,10 @@ async def collect_readiness(comfy: ComfyUIClient | None = None) -> dict[str, Any
             "ok": len(checkpoints) > 0,
             "detail": str(checkpoints[0]) if checkpoints else "none found",
             "fix": (
-                "Place sd_xl_base_1.0.safetensors under "
-                f"{settings.comfyui_root / 'models' / 'checkpoints'}"
+                "Place a single-file SDXL .safetensors under "
+                f"{settings.comfyui_root / 'models' / 'checkpoints'} "
+                "or point IFORGE_EXTRA_MODEL_DIRS at your model folder "
+                "(e.g. /Volumes/external/hfModels)."
             ),
         },
         {
