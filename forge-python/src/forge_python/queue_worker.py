@@ -206,8 +206,11 @@ class QueueWorker:
         )
         if enriched:
             scene_text = enriched
-        elif provider in ("openai", "claude", "anthropic", "gemini"):
-            logger.info("%s enrich unavailable — using template scene", provider)
+        elif provider in ("openai", "claude", "anthropic", "gemini", "local", "local_llama", "llama"):
+            if provider in ("local", "local_llama", "llama"):
+                logger.info("Local GGUF enrich unavailable — using template scene")
+            else:
+                logger.info("%s enrich unavailable — using template scene", provider)
         expanded = expand_prompt(
             scene_text,
             influencer_name=(influencer or {}).get("name") or "Influencer",

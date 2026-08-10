@@ -32,6 +32,9 @@ dev = [
     "pytest-asyncio>=1.4.0",
     "ruff>=0.16.2",
 ]
+llm = [
+    "llama-cpp-python>=0.3.0",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

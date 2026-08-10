@@ -32,6 +32,10 @@ export function Settings() {
   const save = useMutation({
     mutationFn: async (form: FormData) => {
       await api.putSetting("llm_provider", String(form.get("llm_provider") ?? "local"));
+      await api.putSetting(
+        "llm_local_model",
+        String(form.get("llm_local_model") ?? "").trim(),
+      );
       // Blank password fields mean "keep existing" — never wipe keys by accident.
       const openai = String(form.get("openai_api_key") ?? "").trim();
       const anthropic = String(form.get("anthropic_api_key") ?? "").trim();
@@ -125,16 +129,33 @@ export function Settings() {
         <h2 className="mb-3 text-lg">Model providers</h2>
         <p className="muted mb-3 text-sm">
           Image/video still run through local ComfyUI. LLM provider only polishes the scene text before
-          generation. OpenAI, Claude, and Gemini are live; failures fall back to the local template.
+          generation. Local uses a GGUF when <code>llama-cpp-python</code> + a model are available;
+          otherwise the offline template. Cloud providers fall back to the template on failure.
         </p>
         <div className="field">
           <label>LLM provider</label>
           <select name="llm_provider" defaultValue={map.llm_provider ?? "local"} key={map.llm_provider ?? "local"}>
-            <option value="local">Local template (offline)</option>
+            <option value="local">Local (GGUF / template fallback)</option>
             <option value="openai">OpenAI (gpt-4o-mini scene enrich)</option>
             <option value="claude">Claude (Haiku scene enrich)</option>
             <option value="gemini">Gemini (Flash scene enrich)</option>
           </select>
+        </div>
+        <div className="field">
+          <label>Local GGUF path</label>
+          <input
+            name="llm_local_model"
+            type="text"
+            autoComplete="off"
+            placeholder="llm/Llama-3.2-1B-Instruct-Q4_K_M.gguf"
+            defaultValue={map.llm_local_model ?? ""}
+            key={`m-${map.llm_local_model ?? "empty"}`}
+          />
+          <p className="muted mt-1 text-xs">
+            Relative to app <code>models/</code>, or absolute. Leave blank to auto-pick the first{" "}
+            <code>*.gguf</code> under <code>models/llm/</code>. Optional install:{" "}
+            <code>cd forge-python && uv sync --group llm</code>
+          </p>
         </div>
         <div className="field">
           <label>OpenAI API key</label>

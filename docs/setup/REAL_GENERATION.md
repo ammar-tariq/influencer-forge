@@ -103,12 +103,20 @@ Image/video still run through local ComfyUI. Settings → **LLM provider** only 
 
 | Provider | Behavior |
 |----------|----------|
-| Local template | Offline expand (default) |
+| Local | GGUF enrich via `llama-cpp-python` when a `.gguf` is found (`llm_local_model` or `models/llm/*.gguf`); otherwise offline template |
 | OpenAI | `gpt-4o-mini` enrich when `openai_api_key` is set; falls back to template on failure |
 | Claude | Anthropic Haiku enrich when `anthropic_api_key` is set; falls back to template |
 | Gemini | Gemini Flash enrich when `gemini_api_key` is set; falls back to template |
 
 Blank password fields in Settings keep the existing key.
+
+Local LLM setup (optional):
+
+```bash
+cd forge-python && uv sync --group llm
+# place a GGUF under Application Support/…/models/llm/
+# or enable IFORGE_ENABLE_MODEL_DOWNLOADS=1 for the Llama 3.2 1B bootstrap entry
+```
 
 ## System tray
 

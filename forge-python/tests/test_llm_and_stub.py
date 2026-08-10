@@ -11,9 +11,11 @@ from forge_python.llm_manager import (
     expand_prompt,
     gender_phrase,
     gemini_enrich_scene,
+    llama_enrich_scene,
     openai_enrich_scene,
     prompt_implies_nsfw,
     prompt_requests_revealing_outfit,
+    resolve_local_gguf_path,
     resolve_negative_prompt,
 )
 from forge_python.stub_generator import generate_stub_image
@@ -161,6 +163,79 @@ def test_enrich_scene_for_provider_routes_keys() -> None:
     )
     assert text is None
     assert used == "template"
+
+
+def test_resolve_local_gguf_path(tmp_path, monkeypatch) -> None:
+    from forge_python import config
+    from forge_python import llm_manager
+
+    monkeypatch.setattr(config.settings, "models_dir", tmp_path / "models")
+    config.settings.ensure_directories()
+    gguf = config.settings.models_dir / "llm" / "tiny.gguf"
+    gguf.write_bytes(b"gguf-fake")
+    assert resolve_local_gguf_path({}) == gguf.resolve()
+    custom = tmp_path / "custom.gguf"
+    custom.write_bytes(b"x")
+    assert (
+        resolve_local_gguf_path({"llm_local_model": str(custom)}) == custom.resolve()
+    )
+    # Relative to models_dir
+    rel = config.settings.models_dir / "llm" / "rel.gguf"
+    rel.write_bytes(b"y")
+    assert (
+        resolve_local_gguf_path({"llm_local_model": "llm/rel.gguf"}) == rel.resolve()
+    )
+    llm_manager._llama_instances.clear()
+
+
+def test_llama_enrich_without_package_returns_none(tmp_path, monkeypatch) -> None:
+    from forge_python import llm_manager
+
+    gguf = tmp_path / "m.gguf"
+    gguf.write_bytes(b"x")
+    monkeypatch.setitem(__import__("sys").modules, "llama_cpp", None)
+
+    import builtins
+
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "llama_cpp" or name.startswith("llama_cpp."):
+            raise ImportError("no llama")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    llm_manager._llama_instances.clear()
+    assert llama_enrich_scene("beach", model_path=gguf) is None
+
+
+def test_llama_enrich_success(monkeypatch, tmp_path) -> None:
+    from forge_python import llm_manager
+
+    gguf = tmp_path / "m.gguf"
+    gguf.write_bytes(b"x")
+
+    class FakeLlama:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def create_chat_completion(self, *args, **kwargs):
+            return {"choices": [{"message": {"content": "soft light, cafe window"}}]}
+
+    import types
+
+    fake_mod = types.ModuleType("llama_cpp")
+    fake_mod.Llama = FakeLlama  # type: ignore[attr-defined]
+    monkeypatch.setitem(__import__("sys").modules, "llama_cpp", fake_mod)
+    llm_manager._llama_instances.clear()
+    assert llama_enrich_scene("cafe", model_path=gguf) == "soft light, cafe window"
+    text, used = enrich_scene_for_provider(
+        "local",
+        "cafe",
+        settings_map={"llm_local_model": str(gguf)},
+    )
+    assert text == "soft light, cafe window"
+    assert used == "local_llama3.2"
 
 
 def test_nsfw_toggle_keeps_clothed_scene() -> None:

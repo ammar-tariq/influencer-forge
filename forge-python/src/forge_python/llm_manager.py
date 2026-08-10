@@ -2,8 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import re
+from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
+
+# Cached llama.cpp instances keyed by resolved GGUF path.
+_llama_instances: dict[str, Any] = {}
 
 # Soft cues that the user wants adult / unclothed output.
 _EXPLICIT_HINTS = (
@@ -586,6 +593,72 @@ def gemini_enrich_scene(
         return None
 
 
+def resolve_local_gguf_path(settings_map: dict[str, Any] | None = None) -> Path | None:
+    """Resolve a GGUF path from settings or the first file under models/llm/."""
+    from forge_python.config import settings
+
+    settings.ensure_directories()
+    raw = str((settings_map or {}).get("llm_local_model", "") or "").strip()
+    if raw:
+        candidate = Path(raw).expanduser()
+        if not candidate.is_absolute():
+            candidate = settings.models_dir / candidate
+        if candidate.is_file() and candidate.suffix.lower() == ".gguf":
+            return candidate.resolve()
+    for root in (settings.models_dir / "llm", settings.models_dir):
+        if not root.is_dir():
+            continue
+        found = sorted(p for p in root.glob("*.gguf") if p.is_file())
+        if found:
+            return found[0].resolve()
+    return None
+
+
+def llama_enrich_scene(
+    scene: str,
+    *,
+    model_path: Path | str,
+    system_prompt: str | None = None,
+    max_tokens: int = 80,
+) -> str | None:
+    """Polish a scene with a local GGUF via llama-cpp-python. Returns None on failure."""
+    if not scene.strip():
+        return None
+    path = Path(model_path)
+    if not path.is_file():
+        return None
+    try:
+        from llama_cpp import Llama  # type: ignore[import-not-found]
+    except ImportError:
+        logger.info("llama-cpp-python not installed — local GGUF enrich skipped")
+        return None
+    key = str(path.resolve())
+    try:
+        llm = _llama_instances.get(key)
+        if llm is None:
+            llm = Llama(model_path=key, n_ctx=2048, verbose=False)
+            _llama_instances[key] = llm
+        out = llm.create_chat_completion(
+            messages=[
+                {"role": "system", "content": _enrich_instruction(system_prompt)},
+                {"role": "user", "content": scene.strip()},
+            ],
+            temperature=0.4,
+            max_tokens=max_tokens,
+        )
+        text = (
+            (out.get("choices") or [{}])[0]
+            .get("message", {})
+            .get("content", "")
+            .strip()
+            .strip('"')
+        )
+        return text or None
+    except Exception:
+        logger.exception("Local GGUF enrich failed for %s", key)
+        return None
+
+
 def enrich_scene_for_provider(
     provider: str,
     scene: str,
@@ -616,6 +689,14 @@ def enrich_scene_for_provider(
             system_prompt=system_prompt,
         )
         return text, "gemini" if text else "template"
+    if p in ("local", "local_llama", "llama"):
+        # Prefer GGUF when llama-cpp + model are available; otherwise template expand.
+        gguf = resolve_local_gguf_path(settings_map)
+        if gguf is not None:
+            text = llama_enrich_scene(scene, model_path=gguf, system_prompt=system_prompt)
+            if text:
+                return text, "local_llama3.2"
+        return None, "template"
     return None, "template"
 
 

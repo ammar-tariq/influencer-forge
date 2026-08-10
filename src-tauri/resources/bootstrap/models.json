@@ -29,6 +29,13 @@
       "url": "https://huggingface.co/conrevo/AnimateDiff-A1111/resolve/main/motion_module/mm_sdxl_v10_beta.safetensors",
       "required": false,
       "notes": "AnimateDiff SDXL motion module. Place under ComfyUI/models/animatediff_models/."
+    },
+    {
+      "name": "llama-3.2-1b-instruct-q4",
+      "path": "llm/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+      "url": "https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+      "required": false,
+      "notes": "Optional local LLM for scene enrich. Needs llama-cpp-python (uv sync --group llm). Enable downloads with IFORGE_ENABLE_MODEL_DOWNLOADS=1."
     }
   ]
 }

@@ -76,6 +76,7 @@ class Settings:
             self.generations_dir,
             self.thumbnails_dir,
             self.models_dir,
+            self.models_dir / "llm",
             self.vault_dir,
             self.uploads_dir,
         ):
