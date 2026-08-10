@@ -7,13 +7,15 @@ import { ReadinessChecklist } from "../components/common/ReadinessChecklist";
 import { ASPECT_RATIOS, WORKFLOW_TYPES } from "../constants/options";
 import { useQueue } from "../hooks/useQueue";
 
-function allowsNsfw(ageRating?: string | null) {
-  return ageRating === "Adult" || ageRating === "18+";
+/** Only Family/Teen are hard-blocked. Missing rating (stale API) stays selectable. */
+function nsfwBlocked(ageRating?: string | null) {
+  return ageRating === "Family" || ageRating === "Teen";
 }
 
 export function Generate() {
   const qc = useQueryClient();
   const influencers = useQuery({ queryKey: ["influencers"], queryFn: api.listInfluencers });
+  const personalities = useQuery({ queryKey: ["personalities"], queryFn: api.listPersonalities });
   const wardrobe = useQuery({ queryKey: ["wardrobe"], queryFn: api.listWardrobe });
   const readiness = useQuery({ queryKey: ["readiness"], queryFn: api.readiness, refetchInterval: 5000 });
   const queue = useQueue();
@@ -28,16 +30,22 @@ export function Generate() {
   const [activeId, setActiveId] = useState<number | null>(null);
 
   const selected = influencers.data?.find((i) => i.id === influencerId);
-  const nsfwAllowed = allowsNsfw(selected?.age_rating);
+  const personality = personalities.data?.find((p) => p.id === selected?.personality_id);
+  const ageRating = selected?.age_rating ?? personality?.age_rating ?? null;
+  const nsfwAllowed = Boolean(selected) && !nsfwBlocked(ageRating);
 
   useEffect(() => {
-    if (!selected) return;
-    // Default NSFW on for 18+ adult creators; off for Family/Teen.
-    setNsfw(selected.age_rating === "18+");
-    if (!allowsNsfw(selected.age_rating)) {
+    if (!selected) {
       setNsfw(false);
+      return;
     }
-  }, [selected?.id, selected?.age_rating]);
+    if (nsfwBlocked(ageRating)) {
+      setNsfw(false);
+      return;
+    }
+    // Default on for known 18+ / Adult creators.
+    setNsfw(ageRating === "18+" || ageRating === "Adult");
+  }, [selected?.id, ageRating]);
 
   const active = useQuery({
     queryKey: ["generation", activeId],
@@ -160,8 +168,12 @@ export function Generate() {
               onChange={(e) => setNsfw(e.target.checked)}
             />
             NSFW / explicit mode
-            {!nsfwAllowed && selected && (
-              <span className="muted">(needs Adult or 18+ age rating)</span>
+            {!selected && <span className="muted">(select an influencer first)</span>}
+            {selected && nsfwBlocked(ageRating) && (
+              <span className="muted">(blocked for {ageRating} — use Adult/18+)</span>
+            )}
+            {selected && ageRating && (
+              <span className="muted">· rating {ageRating}</span>
             )}
           </label>
           <label className="mb-4 flex items-center gap-2 text-sm">
