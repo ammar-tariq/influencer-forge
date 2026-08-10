@@ -34,6 +34,13 @@ class QueueWorker:
         self._paused = False
         self._wake.set()
 
+    def clear(self) -> int:
+        """Drop pending jobs from the in-memory queue. Returns count removed."""
+        count = len(self._queue)
+        self._queue.clear()
+        self._require_real.clear()
+        return count
+
     def status(self) -> dict[str, int | bool]:
         return {
             "pending": len(self._queue),

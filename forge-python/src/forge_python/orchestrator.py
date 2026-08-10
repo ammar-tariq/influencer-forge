@@ -37,6 +37,7 @@ from forge_python.models import (
     PersonalityCreate,
     PostProcessRequest,
     QueueStatus,
+    ResetRequest,
     Schedule,
     ScheduleCreate,
     SettingItem,
@@ -49,6 +50,7 @@ from forge_python.models import (
 from forge_python.post_processing import process_image
 from forge_python.queue_worker import QueueWorker
 from forge_python.readiness import collect_readiness
+from forge_python.reset import reset_app_data
 from forge_python.scheduler import ScheduleService
 from forge_python.system_monitor import collect_stats
 from forge_python.vault import VaultService
@@ -509,6 +511,39 @@ async def list_settings() -> list[SettingItem]:
 async def put_setting(body: SettingItem) -> SettingItem:
     await db.set_setting(body.key, body.value)
     return body
+
+
+@app.post("/api/system/reset")
+async def full_reset(body: ResetRequest) -> dict[str, Any]:
+    """Wipe local DB/media/uploads/vault. Does not touch ComfyUI or hfModels."""
+    global queue, schedules, vault
+    if body.confirm != "RESET":
+        raise HTTPException(
+            400,
+            'Confirmation failed. Send {"confirm":"RESET"} to proceed.',
+        )
+
+    q = _require_queue()
+    q.pause()
+    cleared = q.clear()
+    if vault is not None:
+        vault.lock()
+    if schedules is not None:
+        schedules.due_reminders.clear()
+        schedules.shutdown()
+
+    await db.close()
+    report = reset_app_data(settings, include_app_models=body.include_app_models)
+    report["queue_cleared"] = cleared
+
+    await db.connect()
+    queue = QueueWorker(db)
+    schedules = ScheduleService(db)
+    vault = VaultService(db)
+    await queue.start()
+    schedules.start()
+    logger.warning("Full local reset completed: %s", report)
+    return {"status": "reset", **report}
 
 
 # --- Schedules ---

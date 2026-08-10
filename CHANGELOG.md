@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/api/readiness` checklist + Dashboard/Generate UI explaining stub vs real mode.
 - `require_real` generation flag and `IFORGE_ALLOW_STUB_FALLBACK` to stop silent placeholders.
 - `docs/setup/REAL_GENERATION.md` — path from CRUD to first real SDXL image.
+- Full local reset via `POST /api/system/reset` and Settings UI (wipes DB/media/vault; keeps hfModels/ComfyUI).
 
 ## [0.1.0] - 2026-08-10
 

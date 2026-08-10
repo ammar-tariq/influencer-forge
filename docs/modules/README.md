@@ -7,6 +7,7 @@
 | Queue + stub/Comfy | `queue_worker.py`, `stub_generator.py`, `comfyui_client.py` | Concurrency 1; Comfy prompt/history/view |
 | Face Seed | `face_seed.py` | Local fingerprint until InstantID |
 | Model bootstrap | `model_downloader.py` + `resources/bootstrap/models.json` | Resumable downloads when enabled |
+| Full reset | `reset.py` + `POST /api/system/reset` | Wipes app data; never touches hfModels/ComfyUI |
 | LLM expand | `llm_manager.py` | Template-first |
 | Vault | `vault.py` | Argon2id + AES-GCM |
 | Scheduler | `scheduler.py` | APScheduler reminders |

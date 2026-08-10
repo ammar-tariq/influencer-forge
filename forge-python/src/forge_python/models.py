@@ -151,6 +151,13 @@ class SettingItem(BaseModel):
     value: str
 
 
+class ResetRequest(BaseModel):
+    """Destructive reset of local app data. confirm must be exactly RESET."""
+
+    confirm: str
+    include_app_models: bool = False
+
+
 class SystemStats(BaseModel):
     cpu_percent: float
     ram_percent: float

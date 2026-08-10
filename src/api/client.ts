@@ -113,6 +113,14 @@ export const api = {
   listSettings: () => request<SettingItem[]>("/api/settings"),
   putSetting: (key: string, value: string) =>
     request<SettingItem>("/api/settings", { method: "PUT", body: JSON.stringify({ key, value }) }),
+  fullReset: (include_app_models = false) =>
+    request<{ status: string; data_dir: string; removed: Record<string, unknown> }>(
+      "/api/system/reset",
+      {
+        method: "POST",
+        body: JSON.stringify({ confirm: "RESET", include_app_models }),
+      },
+    ),
 
   listSchedules: () => request<Schedule[]>("/api/schedules"),
   createSchedule: (body: {

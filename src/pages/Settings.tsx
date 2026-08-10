@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
 
@@ -9,6 +10,9 @@ export function Settings() {
   const qc = useQueryClient();
   const settings = useQuery({ queryKey: ["settings"], queryFn: api.listSettings });
   const map = settingMap(settings.data);
+  const [confirmText, setConfirmText] = useState("");
+  const [includeModels, setIncludeModels] = useState(false);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
 
   const save = useMutation({
     mutationFn: async (form: FormData) => {
@@ -21,10 +25,20 @@ export function Settings() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["settings"] }),
   });
 
+  const reset = useMutation({
+    mutationFn: () => api.fullReset(includeModels),
+    onSuccess: (res) => {
+      setConfirmText("");
+      setResetMessage(`Reset complete. Data dir: ${res.data_dir}`);
+      void qc.invalidateQueries();
+    },
+    onError: (err: Error) => setResetMessage(err.message),
+  });
+
   return (
     <div className="mx-auto max-w-xl space-y-6">
       <header>
-        <h1 className="text-3xl tracking-tight">Model settings</h1>
+        <h1 className="text-3xl tracking-tight">Settings</h1>
         <p className="muted mt-1">Keys stay on this machine. No telemetry.</p>
       </header>
       <form
@@ -34,6 +48,7 @@ export function Settings() {
           save.mutate(new FormData(e.currentTarget));
         }}
       >
+        <h2 className="mb-3 text-lg">Model providers</h2>
         <div className="field">
           <label>LLM provider</label>
           <select name="llm_provider" defaultValue={map.llm_provider ?? "local"} key={map.llm_provider ?? "local"}>
@@ -63,6 +78,45 @@ export function Settings() {
           Save settings
         </button>
       </form>
+
+      <div className="panel border-[color-mix(in_srgb,var(--danger)_35%,var(--line))]">
+        <h2 className="text-lg text-[var(--danger)]">Full reset</h2>
+        <p className="muted mt-2 text-sm">
+          Deletes the local database, generations, thumbnails, uploads, vault data, and schedules.
+          Does <strong>not</strong> delete ComfyUI or `/Volumes/external/hfModels`.
+        </p>
+        <label className="mt-4 flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={includeModels}
+            onChange={(e) => setIncludeModels(e.target.checked)}
+          />
+          Also wipe app-data `models/` cache (not hfModels)
+        </label>
+        <div className="field mt-4">
+          <label>Type RESET to confirm</label>
+          <input
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            placeholder="RESET"
+            autoComplete="off"
+          />
+        </div>
+        {resetMessage && <p className="mb-3 text-sm text-[var(--accent)]">{resetMessage}</p>}
+        <button
+          className="btn"
+          type="button"
+          style={{ background: "var(--danger)", color: "#1a0a0a" }}
+          disabled={confirmText !== "RESET" || reset.isPending}
+          onClick={() => {
+            if (window.confirm("This permanently erases local InfluencerForge data. Continue?")) {
+              reset.mutate();
+            }
+          }}
+        >
+          {reset.isPending ? "Resetting…" : "Reset all local data"}
+        </button>
+      </div>
     </div>
   );
 }
