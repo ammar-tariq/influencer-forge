@@ -188,6 +188,16 @@ export const api = {
     return request<Generation[]>(`/api/generations${suffix}`);
   },
   getGeneration: (id: number) => request<Generation>(`/api/generations/${id}`),
+  uploadAudio: async (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch(`${BASE}/api/uploads/audio`, { method: "POST", body: fd });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || res.statusText);
+    }
+    return res.json() as Promise<{ path: string; filename: string }>;
+  },
   createGeneration: (body: {
     influencer_id: number;
     user_prompt: string;
@@ -198,6 +208,7 @@ export const api = {
     is_nsfw?: boolean;
     require_real?: boolean;
     identity_explore?: boolean;
+    audio_path?: string;
   }) =>
     request<Generation>("/api/generations", {
       method: "POST",

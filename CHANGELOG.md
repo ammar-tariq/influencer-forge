@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Talking-head workflow (`lip_sync`): audio upload + ffmpeg face/audio mux to `.mp4` (Wav2Lip Comfy node later).
 - Local GGUF scene enrich (optional `llama-cpp-python` + `models/llm/*.gguf` or Settings path); Llama 3.2 1B bootstrap entry.
 - Scheduler ICS export (`.ics`) for Google/Apple Calendar import — all schedules or one.
 - System tray Pause/Resume queue wired to orchestrator via Tauri events.

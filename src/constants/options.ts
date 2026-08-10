@@ -276,6 +276,7 @@ export const ASPECT_RATIOS = [
 export const WORKFLOW_TYPES = [
   { value: "image", label: "Image" },
   { value: "video", label: "Video (AnimateDiff path)" },
+  { value: "lip_sync", label: "Talking head (face + audio)" },
 ] as const;
 
 /** Camera framing — default full body so the whole influencer is visible. */

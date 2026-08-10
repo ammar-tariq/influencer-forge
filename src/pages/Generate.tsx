@@ -49,10 +49,12 @@ export function Generate() {
   const [settingOther, setSettingOther] = useState("");
   const [notes, setNotes] = useState(created?.schedulePrompt ?? "");
   const [aspect, setAspect] = useState<"9:16" | "16:9" | "1:1">("9:16");
-  const [workflow, setWorkflow] = useState<"image" | "video">("image");
+  const [workflow, setWorkflow] = useState<"image" | "video" | "lip_sync">("image");
   const [wardrobeId, setWardrobeId] = useState<number | "">("");
   const [nsfw, setNsfw] = useState(false);
   const [requireReal, setRequireReal] = useState(false);
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [audioPath, setAudioPath] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(
     created?.schedulePrompt
       ? "Schedule reminder loaded into notes — adjust the scene and generate."
@@ -169,8 +171,19 @@ export function Generate() {
   });
 
   const mutate = useMutation({
-    mutationFn: () =>
-      api.createGeneration({
+    mutationFn: async () => {
+      let path = audioPath;
+      if (workflow === "lip_sync") {
+        if (!audioFile && !path) {
+          throw new Error("Choose an audio file for talking-head");
+        }
+        if (audioFile) {
+          const uploaded = await api.uploadAudio(audioFile);
+          path = uploaded.path;
+          setAudioPath(path);
+        }
+      }
+      return api.createGeneration({
         influencer_id: Number(influencerId),
         user_prompt: scene.prompt,
         aspect_ratio: aspect,
@@ -179,7 +192,9 @@ export function Generate() {
         is_nsfw: nsfw || scene.nsfw,
         require_real: requireReal,
         identity_explore: false,
-      }),
+        ...(workflow === "lip_sync" && path ? { audio_path: path } : {}),
+      });
+    },
     onSuccess: (gen) => {
       setActiveId(gen.id);
       setMessage(`Queued #${gen.id}${gen.is_nsfw ? " (NSFW)" : ""} — watch progress on the right`);
@@ -201,7 +216,9 @@ export function Generate() {
     result?.status === "pending" || result?.status === "queued"
       ? "Queued…"
       : result?.status === "processing"
-        ? "Generating with ComfyUI…"
+        ? workflow === "lip_sync"
+          ? "Muxing talking-head video…"
+          : "Generating with ComfyUI…"
         : result?.status === "completed"
           ? "Done"
           : result?.status === "failed"
@@ -421,7 +438,10 @@ export function Generate() {
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="field">
               <label>Type</label>
-              <select value={workflow} onChange={(e) => setWorkflow(e.target.value as "image" | "video")}>
+              <select
+                value={workflow}
+                onChange={(e) => setWorkflow(e.target.value as "image" | "video" | "lip_sync")}
+              >
                 {WORKFLOW_TYPES.map((w) => (
                   <option key={w.value} value={w.value}>
                     {w.label}
@@ -440,6 +460,25 @@ export function Generate() {
               </select>
             </div>
           </div>
+          {workflow === "lip_sync" && (
+            <div className="field">
+              <label>Audio for talking head</label>
+              <input
+                type="file"
+                accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.flac"
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  setAudioFile(f);
+                  setAudioPath(null);
+                }}
+              />
+              <p className="muted mt-1 text-xs">
+                Uses the influencer Face Seed / base portrait + this audio (ffmpeg). Needs a locked
+                face — not identity explore. Animated lip motion (ComfyUI-Wav2Lip) comes later.
+              </p>
+              {audioFile && <p className="muted mt-1 text-xs">Selected: {audioFile.name}</p>}
+            </div>
+          )}
 
           <label className="mb-3 flex items-center gap-2 text-sm">
             <input
@@ -466,7 +505,13 @@ export function Generate() {
           )}
           <button
             className="btn"
-            disabled={!influencerId || !scene.prompt || mutate.isPending || clothingConflict}
+            disabled={
+              !influencerId ||
+              !scene.prompt ||
+              mutate.isPending ||
+              clothingConflict ||
+              (workflow === "lip_sync" && !audioFile && !audioPath)
+            }
             onClick={() => mutate.mutate()}
           >
             {mutate.isPending ? "Queueing…" : "Generate"}

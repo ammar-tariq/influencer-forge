@@ -1,7 +1,8 @@
 {
   "name": "lip_sync",
-  "description": "Wav2Lip talking-head workflow",
-  "stub": true,
-  "model": "wav2lip",
-  "nodes": []
+  "description": "Talking-head video. Orchestrator uses ffmpeg (face still + audio). ComfyUI-Wav2Lip graph reserved for a future install.",
+  "stub": false,
+  "engine": "ffmpeg",
+  "model": "talking_head_ffmpeg",
+  "nodes": {}
 }

@@ -95,6 +95,7 @@ CREATE TABLE IF NOT EXISTS generations (
     teaser_path TEXT,
     wardrobe_item_id INTEGER,
     identity_explore BOOLEAN DEFAULT 0,
+    audio_path TEXT,
     status TEXT NOT NULL,
     error_message TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -173,6 +174,8 @@ class Database:
             await self.conn.execute(
                 "ALTER TABLE generations ADD COLUMN identity_explore BOOLEAN DEFAULT 0"
             )
+        if "audio_path" not in cols:
+            await self.conn.execute("ALTER TABLE generations ADD COLUMN audio_path TEXT")
 
     async def close(self) -> None:
         if self._conn is not None:

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 from forge_python.comfyui_client import ComfyUIClient, _video_faceid_enabled
 from forge_python.db import Database, body_from_json
+from forge_python.lip_sync import generate_talking_head, resolve_audio_path
 from forge_python.llm_manager import (
     build_looks_prompt,
     enrich_scene_for_provider,
@@ -152,7 +153,7 @@ class QueueWorker:
         # Only claim "same person as reference" when FaceID/img2img will actually run.
         workflow = str(row["workflow_type"] or "image")
         face_locked = bool(face_reference) and (
-            workflow != "video" or _video_faceid_enabled()
+            workflow == "lip_sync" or workflow != "video" or _video_faceid_enabled()
         )
         wardrobe_keywords = None
         wardrobe_id = row.get("wardrobe_item_id")
@@ -238,17 +239,31 @@ class QueueWorker:
             (expanded, negative, int(is_nsfw), llm_used, generation_id),
         )
         require_real = self._require_real.get(generation_id, False)
-        out, thumb, seed, model = await self.comfy.generate(
-            generation_id=generation_id,
-            prompt=expanded,
-            aspect_ratio=row["aspect_ratio"],
-            seed=row["seed"],
-            workflow_type=row["workflow_type"],
-            face_reference=face_reference,
-            allow_stub=not require_real,
-            negative=negative,
-            is_nsfw=is_nsfw,
-        )
+        if workflow == "lip_sync":
+            audio = resolve_audio_path(row.get("audio_path"))
+            if face_reference is None:
+                raise RuntimeError("Talking-head needs a Face Seed or base portrait")
+            if audio is None:
+                raise RuntimeError("Talking-head audio path missing or invalid")
+            out, thumb, seed, model = await generate_talking_head(
+                generation_id=generation_id,
+                face_image=face_reference,
+                audio_path=audio,
+                aspect_ratio=str(row["aspect_ratio"] or "9:16"),
+                seed=row["seed"],
+            )
+        else:
+            out, thumb, seed, model = await self.comfy.generate(
+                generation_id=generation_id,
+                prompt=expanded,
+                aspect_ratio=row["aspect_ratio"],
+                seed=row["seed"],
+                workflow_type=row["workflow_type"],
+                face_reference=face_reference,
+                allow_stub=not require_real,
+                negative=negative,
+                is_nsfw=is_nsfw,
+            )
         await self.db.execute(
             """
             UPDATE generations

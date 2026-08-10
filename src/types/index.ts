@@ -72,6 +72,7 @@ export interface Generation {
   vault_file_path?: string | null;
   wardrobe_item_id?: number | null;
   identity_explore?: boolean;
+  audio_path?: string | null;
   error_message?: string | null;
   created_at?: string | null;
   completed_at?: string | null;

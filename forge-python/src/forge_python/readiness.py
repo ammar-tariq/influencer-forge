@@ -8,6 +8,7 @@ from typing import Any
 
 from forge_python.comfyui_client import ComfyUIClient
 from forge_python.config import settings
+from forge_python.lip_sync import ffmpeg_available
 
 CHECKPOINT_GLOBS = ("*.safetensors", "*.ckpt", "*.pt")
 
@@ -235,6 +236,13 @@ async def collect_readiness(comfy: ComfyUIClient | None = None) -> dict[str, Any
                 "Install ComfyUI-AnimateDiff-Evolved + an SDXL/SD1.5 motion module "
                 "(see comfyui README). Video falls back to stub/still until ready."
             ),
+        },
+        {
+            "id": "talking_head",
+            "label": "Talking-head / lip-sync (ffmpeg)",
+            "ok": ffmpeg_available(),
+            "detail": "ffmpeg on PATH → face still + audio mux (ComfyUI-Wav2Lip later)",
+            "fix": "Install ffmpeg (e.g. brew install ffmpeg). Needs Face Seed + audio upload.",
         },
     ]
     # Core path for "real" mode — FaceID/AnimateDiff remain optional enhancements.

@@ -80,6 +80,14 @@ Place a motion module, e.g. `mm_sdxl_v10_beta.safetensors`, under:
 
 Outputs are `.mp4` when Video Helper Suite + ffmpeg encode successfully; without ffmpeg the job fails with a clear encode error (or stub if stub fallback is on). Readiness item `animatediff` tracks motion modules/nodes.
 
+## Talking head / lip-sync
+
+Create post → **Talking head** uses system **ffmpeg** (not ComfyUI) to mux Face Seed + uploaded audio into an `.mp4`. Animated Wav2Lip mouth sync is not in this bundle yet.
+
+```bash
+brew install ffmpeg   # macOS
+```
+
 ## Apple Silicon / macOS notes
 
 These log lines are **normal and harmless** on Mac:

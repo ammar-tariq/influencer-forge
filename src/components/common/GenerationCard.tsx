@@ -10,7 +10,7 @@ type Props = {
 
 export function GenerationCard({ generation: g, imagePath, onClick }: Props) {
   const hasPlayableVideo = Boolean(g.output_path?.match(/\.(mp4|webm|mov)$/i));
-  const videoJob = g.workflow_type === "video";
+  const videoJob = g.workflow_type === "video" || g.workflow_type === "lip_sync";
   const path =
     imagePath ??
     (g.is_vaulted

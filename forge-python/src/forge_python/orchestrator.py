@@ -63,6 +63,7 @@ from forge_python.models import (
     WardrobeItem,
 )
 from forge_python.ics_export import build_calendar
+from forge_python.lip_sync import resolve_audio_path
 from forge_python.post_processing import process_image
 from forge_python.queue_worker import QueueWorker
 from forge_python.readiness import collect_readiness
@@ -411,6 +412,23 @@ async def upload_face_seed(looks_id: int, file: UploadFile) -> Looks:
     updated = await db.fetchone("SELECT * FROM looks WHERE id = ?", (looks_id,))
     assert updated
     return _looks_from_row(updated)
+
+
+@app.post("/api/uploads/audio")
+async def upload_audio(file: UploadFile) -> dict[str, str]:
+    """Store audio for talking-head / lip-sync jobs. Returns a path for GenerationCreate.audio_path."""
+    name = (file.filename or "audio.wav").replace("/", "_").replace("\\", "_")
+    suffix = Path(name).suffix.lower()
+    if suffix not in {".wav", ".mp3", ".m4a", ".aac", ".ogg", ".flac"}:
+        raise HTTPException(400, "Audio must be wav, mp3, m4a, aac, ogg, or flac")
+    settings.ensure_directories()
+    dest = settings.uploads_dir / f"audio_{int(time.time() * 1000)}_{name}"
+    with dest.open("wb") as fh:
+        shutil.copyfileobj(file.file, fh)
+    if dest.stat().st_size == 0:
+        dest.unlink(missing_ok=True)
+        raise HTTPException(400, "Empty audio upload")
+    return {"path": str(dest), "filename": dest.name}
 
 
 def _looks_from_row(r: dict[str, Any]) -> Looks:
@@ -833,6 +851,17 @@ async def _enqueue_generation(
     # Identity explore: selected traits only, no face-reference lock in the text stack.
     # Create-post with a lock: hybrid looks (body kept; hair/eyes from reference).
     has_face_ref = resolve_face_lock_path(looks) is not None
+    if body.workflow_type == "lip_sync":
+        if body.identity_explore:
+            raise HTTPException(400, "Talking-head cannot use identity explore — needs a locked face")
+        if not has_face_ref:
+            raise HTTPException(
+                400,
+                "Talking-head needs a Face Seed or base portrait on the influencer look",
+            )
+        audio = resolve_audio_path(body.audio_path)
+        if audio is None:
+            raise HTTPException(400, "Talking-head needs audio — upload via /api/uploads/audio first")
     face_locked = has_face_ref and not body.identity_explore
     looks_prompt = build_looks_prompt(
         age=(looks or {}).get("age"),
@@ -865,14 +894,18 @@ async def _enqueue_generation(
         age=(looks or {}).get("age"),
     )
     use_seed: int | None = body.seed if seed is _SEED_FROM_BODY else seed  # type: ignore[assignment]
+    audio_store = None
+    if body.workflow_type == "lip_sync" and body.audio_path:
+        resolved = resolve_audio_path(body.audio_path)
+        audio_store = str(resolved) if resolved else body.audio_path
     cur = await db.execute(
         """
         INSERT INTO generations(
             influencer_id, user_prompt, expanded_prompt, negative_prompt,
             workflow_type, model_used, llm_used,
             aspect_ratio, seed, steps, cfg_scale, is_nsfw, wardrobe_item_id,
-            identity_explore, status
-        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+            identity_explore, audio_path, status
+        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
         """,
         (
             body.influencer_id,
@@ -889,6 +922,7 @@ async def _enqueue_generation(
             int(is_nsfw),
             wardrobe_id if layers.clothing_from_wardrobe else None,
             int(body.identity_explore),
+            audio_store,
         ),
     )
     gid = cur.lastrowid

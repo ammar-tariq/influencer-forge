@@ -145,7 +145,7 @@ class WardrobeItem(WardrobeCreate):
 class GenerationCreate(BaseModel):
     influencer_id: int
     user_prompt: str
-    workflow_type: Literal["image", "video"] = "image"
+    workflow_type: Literal["image", "video", "lip_sync"] = "image"
     aspect_ratio: Literal["9:16", "16:9", "1:1"] = "9:16"
     seed: int | None = None
     steps: int = 20
@@ -158,6 +158,8 @@ class GenerationCreate(BaseModel):
     require_real: bool = False
     # Face-setup / wizard: explore a new face (no FaceID reference). Create-post: false.
     identity_explore: bool = False
+    # Talking-head: path from POST /api/uploads/audio (under media/uploads/).
+    audio_path: str | None = None
 
 
 class GenerationBatchCreate(GenerationCreate):
@@ -188,6 +190,7 @@ class Generation(BaseModel):
     teaser_path: str | None = None
     wardrobe_item_id: int | None = None
     identity_explore: bool = False
+    audio_path: str | None = None
     status: str
     error_message: str | None = None
     created_at: str | None = None
@@ -202,7 +205,7 @@ class GenerationReplace(BaseModel):
     """Replace an existing post’s content (new prompt / wardrobe; same generation id)."""
 
     user_prompt: str
-    workflow_type: Literal["image", "video"] | None = None
+    workflow_type: Literal["image", "video", "lip_sync"] | None = None
     aspect_ratio: Literal["9:16", "16:9", "1:1"] | None = None
     wardrobe_item_id: int | None = None
     is_nsfw: bool | None = None

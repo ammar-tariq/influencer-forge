@@ -122,6 +122,16 @@ cd forge-python && uv sync --group llm
 
 Desktop builds expose a tray menu (Show / Pause queue / Resume queue / Quit). Pause and Resume emit Tauri events that the React shell maps to `POST /api/queue/pause` and `/api/queue/resume`.
 
+## Talking head (lip-sync)
+
+Create post → **Talking head (face + audio)**:
+
+1. Influencer must have a Face Seed or base portrait.
+2. Upload wav/mp3/m4a/… — stored via `POST /api/uploads/audio`.
+3. Orchestrator muxes face still + audio with **ffmpeg** into `{id}.mp4` (`model_used=talking_head_ffmpeg`).
+
+This is a playable talking-head container (still face + voice). Animated mouth sync via **ComfyUI-Wav2Lip** is not wired yet (no custom node in the bundle). Readiness item `talking_head` turns green when `ffmpeg` is on `PATH`.
+
 ## Scheduler & Library edits
 
 - **Scheduler**: local reminders (`GET /api/schedules/reminders`); pause/resume/delete schedules; due items deep-link to Create post with the template in notes. Export `.ics` via `GET /api/schedules/export.ics` (or per-schedule) for Google/Apple Calendar import (no OAuth).
