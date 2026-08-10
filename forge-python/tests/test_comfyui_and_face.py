@@ -5,8 +5,82 @@ import httpx
 import pytest
 from PIL import Image
 
-from forge_python.comfyui_client import ComfyUIClient, denoise_for_prompt
+from forge_python.comfyui_client import (
+    ComfyUIClient,
+    _ffmpeg_for_video_ok,
+    _video_faceid_enabled,
+    denoise_for_prompt,
+)
 from forge_python.face_seed import embedding_present, extract_face_embedding
+
+
+def test_video_faceid_env_toggle(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("IFORGE_VIDEO_FACEID", "0")
+    assert _video_faceid_enabled() is False
+    monkeypatch.setenv("IFORGE_VIDEO_FACEID", "1")
+    assert _video_faceid_enabled() is True
+
+
+def test_ffmpeg_for_video_helper() -> None:
+    assert isinstance(_ffmpeg_for_video_ok(), bool)
+
+
+@pytest.mark.asyncio
+async def test_video_face_seed_requires_faceid_or_opt_out(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from forge_python import config
+    from forge_python.comfyui_client import ComfyUIClient
+
+    monkeypatch.setattr(config.settings, "data_dir", tmp_path)
+    monkeypatch.setattr(config.settings, "media_dir", tmp_path / "media")
+    monkeypatch.setattr(config.settings, "generations_dir", tmp_path / "media" / "generations")
+    monkeypatch.setattr(config.settings, "thumbnails_dir", tmp_path / "media" / "thumbnails")
+    monkeypatch.setattr(config.settings, "uploads_dir", tmp_path / "media" / "uploads")
+    config.settings.ensure_directories()
+    face = tmp_path / "seed.png"
+    Image.new("RGB", (64, 64), (10, 20, 30)).save(face)
+
+    monkeypatch.setenv("IFORGE_VIDEO_FACEID", "1")
+    monkeypatch.setattr(
+        "forge_python.readiness.faceid_weights_present",
+        lambda: {"ok": False, "ipadapter_file": None, "clip_vision_file": None},
+    )
+    monkeypatch.setattr("forge_python.readiness.ipadapter_custom_node_installed", lambda: False)
+    monkeypatch.setattr("forge_python.readiness.find_motion_module", lambda: tmp_path / "mm.safetensors")
+    (tmp_path / "mm.safetensors").write_bytes(b"x")
+    monkeypatch.setattr("forge_python.comfyui_client._ffmpeg_for_video_ok", lambda: True)
+
+    client = ComfyUIClient()
+    monkeypatch.setattr(
+        client,
+        "load_workflow_bundle",
+        lambda _n: {
+            "stub": False,
+            "model": "animate_diff",
+            "meta": {
+                "motion_node": "20",
+                "evolved_sampling_node": "22",
+                "checkpoint_node": "4",
+                "seed_node": "3",
+            },
+            "prompt": {
+                "3": {"inputs": {"model": ["22", 0]}},
+                "4": {"inputs": {}},
+                "20": {"inputs": {"model_name": "x"}},
+                "22": {"inputs": {"model": ["4", 0]}},
+            },
+        },
+    )
+    with pytest.raises(RuntimeError, match="IFORGE_VIDEO_FACEID=0"):
+        await client.generate_via_comfy(
+            generation_id=7,
+            prompt_text="wave",
+            aspect_ratio="9:16",
+            seed=1,
+            workflow_type="video",
+            face_reference=str(face),
+        )
 
 
 def test_video_workflow_mac_safe_defaults() -> None:

@@ -131,6 +131,15 @@ cd forge-python && uv sync --group llm
 
 Desktop builds expose a tray menu (Show / Pause queue / Resume queue / Quit). Pause and Resume emit Tauri events that the React shell maps to `POST /api/queue/pause` and `/api/queue/resume`.
 
+## AnimateDiff video hardening
+
+Create post → **Video**:
+
+- Rejected at enqueue if AnimateDiff nodes / motion module are missing.
+- Needs **ffmpeg** (or `imageio-ffmpeg`) before Comfy runs — clear error otherwise.
+- Face Seed + FaceID on by default at 384×640; if FaceID weights/nodes are missing, the job **fails** unless you set `IFORGE_VIDEO_FACEID=0` (identity may drift).
+- No Pillow stub for video/lip_sync (avoids fake “completed” PNGs).
+
 ## Talking head (lip-sync)
 
 Create post → **Talking head (face + audio)**:

@@ -71,6 +71,8 @@ export const api = {
       mode: "real" | "stub";
       real_ready: boolean;
       allow_stub_fallback: boolean;
+      animatediff_ready?: boolean;
+      faceid_ready?: boolean;
       summary: string;
       checklist: Array<{
         id: string;

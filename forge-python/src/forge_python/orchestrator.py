@@ -66,7 +66,12 @@ from forge_python.ics_export import build_calendar
 from forge_python.lip_sync import resolve_audio_path
 from forge_python.post_processing import process_image
 from forge_python.queue_worker import QueueWorker
-from forge_python.readiness import collect_readiness
+from forge_python.readiness import (
+    animatediff_custom_node_installed,
+    collect_readiness,
+    find_motion_module,
+    workflow_ready,
+)
 from forge_python.reset import reset_app_data
 from forge_python.scheduler import ScheduleService
 from forge_python.system_monitor import collect_stats
@@ -862,6 +867,19 @@ async def _enqueue_generation(
         audio = resolve_audio_path(body.audio_path)
         if audio is None:
             raise HTTPException(400, "Talking-head needs audio — upload via /api/uploads/audio first")
+    if body.workflow_type == "video":
+        ad_ok = (
+            workflow_ready("video_animate.json")
+            and animatediff_custom_node_installed()
+            and find_motion_module() is not None
+        )
+        if not ad_ok:
+            raise HTTPException(
+                400,
+                "AnimateDiff video is not ready — install ComfyUI-AnimateDiff-Evolved, "
+                "Video Helper Suite, an SDXL motion module, and ffmpeg "
+                "(see readiness checklist / comfyui README).",
+            )
     face_locked = has_face_ref and not body.identity_explore
     looks_prompt = build_looks_prompt(
         age=(looks or {}).get("age"),

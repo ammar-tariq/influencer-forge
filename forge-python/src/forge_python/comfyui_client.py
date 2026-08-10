@@ -7,6 +7,7 @@ import copy
 import json
 import logging
 import os
+import shutil
 import subprocess
 import sys
 import uuid
@@ -36,6 +37,18 @@ def _video_faceid_enabled() -> bool:
     """
     raw = os.environ.get("IFORGE_VIDEO_FACEID", "1").strip().lower()
     return raw not in {"0", "false", "no", "off"}
+
+
+def _ffmpeg_for_video_ok() -> bool:
+    """VHS needs ffmpeg on PATH or imageio-ffmpeg in the ComfyUI/runtime env."""
+    if shutil.which("ffmpeg"):
+        return True
+    try:
+        import imageio_ffmpeg  # type: ignore[import-not-found]
+
+        return bool(imageio_ffmpeg.get_ffmpeg_exe())
+    except Exception:
+        return False
 
 
 def _cover_resize(image: Image.Image, width: int, height: int) -> Image.Image:
@@ -438,6 +451,11 @@ class ComfyUIClient:
         bundle: dict[str, Any]
 
         if workflow_type == "video":
+            if not _ffmpeg_for_video_ok():
+                raise RuntimeError(
+                    "Video needs ffmpeg on PATH (or imageio-ffmpeg in the ComfyUI venv) "
+                    "for Video Helper Suite to write mp4. Install ffmpeg, then restart ComfyUI."
+                )
             bundle = copy.deepcopy(self.load_workflow_bundle("video_animate.json"))
             motion = find_motion_module()
             meta = bundle.get("meta") or {}
@@ -451,10 +469,10 @@ class ComfyUIClient:
             weights = faceid_weights_present()
             node_ok = ipadapter_custom_node_installed()
             want_faceid = _video_faceid_enabled()
+            has_face = bool(face_reference) and Path(str(face_reference)).is_file()
             can_faceid = (
                 want_faceid
-                and bool(face_reference)
-                and Path(face_reference).is_file()
+                and has_face
                 and weights["ok"]
                 and node_ok
             )
@@ -476,6 +494,13 @@ class ComfyUIClient:
                     image_filename,
                 )
             else:
+                if has_face and want_faceid:
+                    raise RuntimeError(
+                        "Face Seed is set for video but FaceID is unavailable. "
+                        "Install IP-Adapter FaceID weights/nodes, or set "
+                        "IFORGE_VIDEO_FACEID=0 to run AnimateDiff without identity lock "
+                        "(gender/face may drift)."
+                    )
                 # Strip FaceID; Gen2 ADE needs checkpoint MODEL into UseEvolvedSampling.
                 prompt_nodes = bundle.setdefault("prompt", {})
                 for nid in faceid_nodes:
@@ -490,15 +515,9 @@ class ComfyUIClient:
                         evolved_node,
                         0,
                     ]
-                if face_reference and Path(face_reference).is_file() and not want_faceid:
+                if has_face and not want_faceid:
                     logger.info(
-                        "Video gen %s: skipping FaceID (set IFORGE_VIDEO_FACEID=1 to enable) "
-                        "— AnimateDiff alone is more stable on Apple Silicon",
-                        generation_id,
-                    )
-                elif face_reference and Path(face_reference).is_file():
-                    logger.info(
-                        "Video gen %s: FaceID unavailable — AnimateDiff without identity lock",
+                        "Video gen %s: FaceID disabled via IFORGE_VIDEO_FACEID=0",
                         generation_id,
                     )
         elif face_reference and Path(face_reference).is_file():
@@ -655,6 +674,9 @@ class ComfyUIClient:
         if face_reference:
             logger.info("Face reference attached: %s", face_reference)
             # Face Seed must never degrade to a Pillow placeholder of a random person.
+            stub_ok = False
+        if workflow_type in {"video", "lip_sync"}:
+            # Video stubs are misleading PNGs; require a real encode path.
             stub_ok = False
 
         comfy_error: str | None = None

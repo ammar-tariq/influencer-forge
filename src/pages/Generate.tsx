@@ -471,6 +471,16 @@ export function Generate() {
               </select>
             </div>
           </div>
+          {workflow === "video" && (
+            <p className="muted text-xs">
+              Short AnimateDiff clip at Mac-safe 384×640 (~2s). With a Face Seed, FaceID stays on for
+              identity — if ComfyUI OOMs, restart with{" "}
+              <code>IFORGE_VIDEO_FACEID=0</code>. Needs AnimateDiff + VHS + ffmpeg (see readiness).
+              {!readiness.data?.animatediff_ready && (
+                <span className="text-[var(--danger)]"> AnimateDiff is not ready yet.</span>
+              )}
+            </p>
+          )}
           {workflow === "lip_sync" && (
             <div className="field">
               <label>Audio for talking head</label>

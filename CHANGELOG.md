@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Video: enqueue preflight for AnimateDiff; require ffmpeg; Face Seed + FaceID fail-closed unless `IFORGE_VIDEO_FACEID=0`; no stub for video/lip_sync.
 - Face Seed jobs refuse plain txt2img/stub when FaceID and img2img are unavailable (no invented face).
 - Face Seed create/regenerate: looks text is body-only (no ethnicity/hair/age fighting the reference); Library regenerate defaults to face-lock.
 - Video: FaceID on by default at 12×384×640 (identity/gender); longer ~2s clip; don’t inject nude over clothed NSFW; queue “processing” only while a job runs; video autoplay muted.
