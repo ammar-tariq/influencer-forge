@@ -36,7 +36,9 @@ def test_reset_wipes_db_and_media(tmp_path: Path) -> None:
     assert report["removed"]["models"] == "kept"
 
     reset_app_data(s, include_app_models=True)
-    assert list(s.models_dir.iterdir()) == []
+    # ensure_directories recreates models/llm/ (empty); no leftover weight files.
+    leftover_files = [p for p in s.models_dir.rglob("*") if p.is_file()]
+    assert leftover_files == []
 
 
 @pytest.mark.asyncio

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,14 @@ from typing import Any
 import httpx
 
 from forge_python.config import settings
+
+_MIRROR_PREFIXES = (
+    "checkpoints/",
+    "ipadapter/",
+    "clip_vision/",
+    "animatediff_models/",
+    "loras/",
+)
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +110,7 @@ class ModelDownloader:
             self.state.message = f"Downloading {name}"
             try:
                 await self._download_resumable(url, dest)
+                self._mirror_into_comfy(rel, dest)
                 completed += 1
             except Exception as exc:
                 logger.exception("Failed downloading %s", name)
@@ -110,6 +120,32 @@ class ModelDownloader:
         steps[3]["status"] = "done" if completed == len(models) else "partial"
         self.state.message = f"Downloaded {completed}/{len(models)} model assets"
         self.state.progress = 100
+
+    def _mirror_into_comfy(self, rel: str, dest: Path) -> None:
+        """Copy bootstrap assets into the ComfyUI models tree (and Wav2Lip node)."""
+        if not dest.is_file():
+            return
+        comfy_models = settings.comfyui_root / "models"
+        if comfy_models.is_dir() and any(rel.startswith(p) for p in _MIRROR_PREFIXES):
+            mirror = comfy_models / rel
+            mirror.parent.mkdir(parents=True, exist_ok=True)
+            if not mirror.exists() or mirror.stat().st_size != dest.stat().st_size:
+                shutil.copy2(dest, mirror)
+                logger.info("Mirrored %s → %s", dest, mirror)
+
+        if rel.endswith("wav2lip_gan.pth") or rel.startswith("wav2lip/"):
+            node_ckpt = (
+                settings.comfyui_root
+                / "custom_nodes"
+                / "ComfyUI_wav2lip"
+                / "checkpoints"
+                / "wav2lip_gan.pth"
+            )
+            if (settings.comfyui_root / "custom_nodes" / "ComfyUI_wav2lip").is_dir():
+                node_ckpt.parent.mkdir(parents=True, exist_ok=True)
+                if not node_ckpt.exists() or node_ckpt.stat().st_size != dest.stat().st_size:
+                    shutil.copy2(dest, node_ckpt)
+                    logger.info("Copied Wav2Lip checkpoint → %s", node_ckpt)
 
     async def _download_resumable(self, url: str, dest: Path) -> None:
         if not url:

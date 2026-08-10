@@ -29,6 +29,8 @@ export function Settings() {
 
   const confirmOk = confirmText.trim().toUpperCase() === "RESET";
 
+  const secretSet = (key: string) => Boolean(map[key] && map[key] !== "");
+
   const save = useMutation({
     mutationFn: async (form: FormData) => {
       await api.putSetting("llm_provider", String(form.get("llm_provider") ?? "local"));
@@ -43,10 +45,23 @@ export function Settings() {
       if (openai) await api.putSetting("openai_api_key", openai);
       if (anthropic) await api.putSetting("anthropic_api_key", anthropic);
       if (gemini) await api.putSetting("gemini_api_key", gemini);
+      const gClient = String(form.get("google_client_id") ?? "").trim();
+      const gSecret = String(form.get("google_client_secret") ?? "").trim();
+      if (gClient) await api.putSetting("google_client_id", gClient);
+      if (gSecret) await api.putSetting("google_client_secret", gSecret);
     },
     onSuccess: () => {
       setSaveMessage("Settings saved on this machine.");
       void qc.invalidateQueries({ queryKey: ["settings"] });
+    },
+    onError: (err: Error) => setSaveMessage(err.message),
+  });
+
+  const connectGoogle = useMutation({
+    mutationFn: api.googleCalendarAuthUrl,
+    onSuccess: (res) => {
+      window.open(res.url, "_blank", "noopener,noreferrer");
+      setSaveMessage("Complete Google consent in the browser, then use Scheduler → Sync to Google.");
     },
     onError: (err: Error) => setSaveMessage(err.message),
   });
@@ -97,6 +112,19 @@ export function Settings() {
             <div className="muted text-sm">Queue</div>
             <div className="mt-2 text-3xl">
               {stats ? `${stats.queue_pending}/${stats.queue_processing}` : "—"}
+            </div>
+          </div>
+          <div className="panel md:col-span-2">
+            <div className="muted text-sm">GPU</div>
+            <div className="mt-2 text-xl">{stats?.gpu_name ?? "—"}</div>
+            <div className="muted mt-1 text-xs">
+              {stats?.gpu_util_percent != null
+                ? `${stats.gpu_util_percent.toFixed(0)}% util`
+                : "util n/a"}
+              {stats?.vram_used_gb != null && stats?.vram_total_gb != null
+                ? ` · VRAM ${stats.vram_used_gb}/${stats.vram_total_gb} GB`
+                : ""}
+              {stats?.temperature_c != null ? ` · ${stats.temperature_c.toFixed(0)}°C` : ""}
             </div>
           </div>
         </div>
@@ -163,9 +191,9 @@ export function Settings() {
             name="openai_api_key"
             type="password"
             autoComplete="off"
-            placeholder={map.openai_api_key ? "•••••••• (saved)" : "sk-…"}
+            placeholder={secretSet("openai_api_key") ? "•••••••• (saved)" : "sk-…"}
             defaultValue=""
-            key={`o-${map.openai_api_key ? "set" : "empty"}`}
+            key={`o-${secretSet("openai_api_key") ? "set" : "empty"}`}
           />
           <p className="muted mt-1 text-xs">
             Leave blank to keep the existing key. Keys stay in local SQLite only.
@@ -177,9 +205,9 @@ export function Settings() {
             name="anthropic_api_key"
             type="password"
             autoComplete="off"
-            placeholder={map.anthropic_api_key ? "•••••••• (saved)" : ""}
+            placeholder={secretSet("anthropic_api_key") ? "•••••••• (saved)" : ""}
             defaultValue=""
-            key={`a-${map.anthropic_api_key ? "set" : "empty"}`}
+            key={`a-${secretSet("anthropic_api_key") ? "set" : "empty"}`}
           />
         </div>
         <div className="field">
@@ -188,14 +216,55 @@ export function Settings() {
             name="gemini_api_key"
             type="password"
             autoComplete="off"
-            placeholder={map.gemini_api_key ? "•••••••• (saved)" : ""}
+            placeholder={secretSet("gemini_api_key") ? "•••••••• (saved)" : ""}
             defaultValue=""
-            key={`g-${map.gemini_api_key ? "set" : "empty"}`}
+            key={`g-${secretSet("gemini_api_key") ? "set" : "empty"}`}
           />
         </div>
-        <button className="btn" type="submit" disabled={save.isPending}>
-          {save.isPending ? "Saving…" : "Save settings"}
-        </button>
+        <h3 className="mb-2 mt-6 text-base">Google Calendar (optional OAuth)</h3>
+        <p className="muted mb-3 text-sm">
+          Create an OAuth client in Google Cloud Console (Desktop or Web) with redirect URI{" "}
+          <code>http://127.0.0.1:8765/api/schedules/google/callback</code>. Apple Calendar stays
+          ICS-only (export from Scheduler).
+        </p>
+        <div className="field">
+          <label>Google client ID</label>
+          <input
+            name="google_client_id"
+            type="text"
+            autoComplete="off"
+            defaultValue={map.google_client_id && map.google_client_id !== "__set__" ? map.google_client_id : ""}
+            key={`gcid-${map.google_client_id ?? "empty"}`}
+            placeholder="….apps.googleusercontent.com"
+          />
+        </div>
+        <div className="field">
+          <label>Google client secret</label>
+          <input
+            name="google_client_secret"
+            type="password"
+            autoComplete="off"
+            placeholder={secretSet("google_client_secret") ? "•••••••• (saved)" : ""}
+            defaultValue=""
+            key={`gsec-${secretSet("google_client_secret") ? "set" : "empty"}`}
+          />
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <button className="btn" type="submit" disabled={save.isPending}>
+            {save.isPending ? "Saving…" : "Save settings"}
+          </button>
+          <button
+            className="btn secondary"
+            type="button"
+            disabled={connectGoogle.isPending || !map.google_client_id}
+            onClick={() => connectGoogle.mutate()}
+          >
+            {connectGoogle.isPending ? "Opening…" : "Connect Google"}
+          </button>
+        </div>
+        {secretSet("google_refresh_token") && (
+          <p className="muted mt-2 text-xs">Refresh token saved — use Scheduler → Sync to Google.</p>
+        )}
         {saveMessage && <p className="mt-3 text-sm text-[var(--accent-2)]">{saveMessage}</p>}
       </form>
 

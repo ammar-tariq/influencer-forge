@@ -11,7 +11,7 @@
 | Full reset | `reset.py` + `POST /api/system/reset` | Wipes app data; never touches hfModels/ComfyUI |
 | LLM expand | `llm_manager.py` | Template-first; optional local GGUF + OpenAI/Claude/Gemini enrich |
 | Vault | `vault.py` | Argon2id + AES-GCM; wipe cleartext; teaser gallery + reveal API |
-| Scheduler | `scheduler.py`, `ics_export.py` | APScheduler reminders + ICS export |
+| Scheduler | `scheduler.py`, `ics_export.py`, `calendar_sync.py` | Reminders + ICS + optional Google Calendar OAuth |
 | System monitor | `system_monitor.py` | psutil |
 | Post | `post_processing.py` | Pillow edits |
 | Bootstrap | `model_downloader.py` | No HF in Phase 1 |

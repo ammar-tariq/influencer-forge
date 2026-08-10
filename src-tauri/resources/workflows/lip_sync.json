@@ -1,8 +1,13 @@
 {
   "name": "lip_sync",
-  "description": "Talking-head video. Orchestrator uses ffmpeg (face still + audio). ComfyUI-Wav2Lip graph reserved for a future install.",
+  "description": "Talking-head video. Prefers ComfyUI Wav2Lip when install-wav2lip.sh completed; else ffmpeg face+audio mux.",
   "stub": false,
-  "engine": "ffmpeg",
-  "model": "talking_head_ffmpeg",
-  "nodes": {}
+  "engine": "wav2lip_or_ffmpeg",
+  "model": "wav2lip",
+  "nodes": {
+    "LoadImage": "face still",
+    "LoadAudio": "uploaded speech",
+    "Wav2Lip": "mode=repetitive",
+    "VHS_VideoCombine": "mp4 encode"
+  }
 }

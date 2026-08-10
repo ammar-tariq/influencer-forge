@@ -67,6 +67,7 @@ cd forge-python && uv run pytest -q
 | [docs/setup/CURSOR.md](./docs/setup/CURSOR.md) | **Cursor IDE setup path** |
 | [docs/setup/REAL_GENERATION.md](./docs/setup/REAL_GENERATION.md) | **When CRUD becomes real AI images** |
 | [docs/setup/PACKAGING.md](./docs/setup/PACKAGING.md) | Dev vs release, portable Python assemble |
+| [docs/setup/RELEASE_VALIDATION.md](./docs/setup/RELEASE_VALIDATION.md) | Cross-platform release smoke checklist |
 | [docs/architecture/OVERVIEW.md](./docs/architecture/OVERVIEW.md) | Runtime architecture |
 | [docs/modules/README.md](./docs/modules/README.md) | Module index |
 | [AGENTS.md](./AGENTS.md) | Instructions for AI coding agents |

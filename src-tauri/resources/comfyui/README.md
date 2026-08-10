@@ -80,13 +80,31 @@ Place a motion module, e.g. `mm_sdxl_v10_beta.safetensors`, under:
 
 Outputs are `.mp4` when Video Helper Suite + ffmpeg encode successfully; without ffmpeg the job fails with a clear encode error (or stub if stub fallback is on). Readiness item `animatediff` tracks motion modules/nodes.
 
-## Talking head / lip-sync
+## Talking head / lip-sync (Wav2Lip)
 
-Create post → **Talking head** uses system **ffmpeg** (not ComfyUI) to mux Face Seed + uploaded audio into an `.mp4`. Animated Wav2Lip mouth sync is not in this bundle yet.
+Create post → **Talking head** prefers **ComfyUI Wav2Lip** when installed; otherwise muxes Face Seed + audio with system **ffmpeg**.
 
 ```bash
-brew install ffmpeg   # macOS
+# From repo root — clones ComfyUI_wav2lip, downloads wav2lip_gan.pth, installs node deps
+./scripts/install-wav2lip.sh
+# Restart ComfyUI so the Wav2Lip + LoadAudio nodes load
+brew install ffmpeg   # still required for VHS mp4 encode / ffmpeg fallback
 ```
+
+Readiness item `talking_head` turns green when ffmpeg is available and/or Wav2Lip is ready. Jobs report `model_used=wav2lip` or `talking_head_ffmpeg`.
+
+## InstantID (optional)
+
+IP-Adapter FaceID is the primary identity path. InstantID is tracked as an optional readiness check only:
+
+```bash
+cd ComfyUI/custom_nodes
+git clone https://github.com/instantX-research/ComfyUI_InstantID.git
+```
+
+## NSFW LoRAs (optional)
+
+When NSFW is enabled, the orchestrator injects a `LoraLoader` if a LoRA whose filename contains `nsfw`, `nude`, or `explicit` exists under `ComfyUI/models/loras/`. Without a LoRA, NSFW still uses prompt + denoise ramps.
 
 ## Apple Silicon / macOS notes
 

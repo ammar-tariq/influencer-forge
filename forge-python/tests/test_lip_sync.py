@@ -35,6 +35,8 @@ async def test_generate_talking_head(tmp_path: Path, monkeypatch: pytest.MonkeyP
     monkeypatch.setattr(config.settings, "generations_dir", tmp_path / "media" / "generations")
     monkeypatch.setattr(config.settings, "thumbnails_dir", tmp_path / "media" / "thumbnails")
     monkeypatch.setattr(config.settings, "uploads_dir", tmp_path / "media" / "uploads")
+    monkeypatch.setattr(config.settings, "enable_comfyui", False)
+    monkeypatch.setattr("forge_python.lip_sync.wav2lip_ready", lambda: False)
     config.settings.ensure_directories()
 
     face = tmp_path / "face.png"

@@ -9,7 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Talking-head workflow (`lip_sync`): audio upload + ffmpeg face/audio mux to `.mp4` (Wav2Lip Comfy node later).
+- Wav2Lip talking-head path (`scripts/install-wav2lip.sh` + ComfyUI node) with ffmpeg still+audio fallback.
+- Google Calendar OAuth sync (`Settings` client id/secret → Connect → Scheduler Sync to Google); Apple remains ICS export.
+- Bootstrap manifest v2: optional SDXL base + Wav2Lip gan URLs; downloads mirror into ComfyUI `models/`.
+- System monitor GPU/VRAM via `nvidia-smi` (Apple Silicon labeled MPS); NSFW LoRA auto-inject; InstantID readiness item.
+- Library drag-to-crop preview; cross-platform release checklist (`docs/setup/RELEASE_VALIDATION.md`).
+- Talking-head workflow (`lip_sync`): audio upload + ffmpeg face/audio mux to `.mp4`.
 - Local GGUF scene enrich (optional `llama-cpp-python` + `models/llm/*.gguf` or Settings path); Llama 3.2 1B bootstrap entry.
 - Scheduler ICS export (`.ics`) for Google/Apple Calendar import — all schedules or one.
 - System tray Pause/Resume queue wired to orchestrator via Tauri events.

@@ -59,3 +59,17 @@ In release, the child process uses the bundled interpreter + `PYTHONPATH=…/for
 ## CI
 
 `.github/workflows/build.yml` installs uv, syncs `forge-python`, runs `assemble-portable-python.sh`, then `tauri-action`. Tag pushes (`v*`) and `workflow_dispatch` trigger builds.
+
+Matrix targets: **macOS (dmg)**, **Ubuntu (AppImage)**, **Windows (NSIS)**.
+
+## Release checklist
+
+1. `cd forge-python && uv run pytest -q` and `npm test && npm run typecheck`
+2. `./scripts/assemble-portable-python.sh` succeeds (or `npm run package`)
+3. Smoke: launch built app → Dashboard readiness → create influencer → generate stub/real image
+4. Confirm orchestrator binds `127.0.0.1:8765` only
+5. Optional: `IFORGE_ENABLE_MODEL_DOWNLOADS=1` for bootstrap SDXL / FaceID / Wav2Lip weights
+6. Tag `vX.Y.Z` to trigger the desktop build workflow; attach artifacts from the Actions run
+7. Manual sign-off on each OS you ship (CI builds; GPU/ComfyUI hardware still varies by machine)
+
+See also [docs/setup/RELEASE_VALIDATION.md](./RELEASE_VALIDATION.md).

@@ -134,6 +134,9 @@ export interface SystemStats {
   ram_used_gb: number;
   ram_total_gb: number;
   gpu_name?: string | null;
+  gpu_util_percent?: number | null;
+  vram_used_gb?: number | null;
+  vram_total_gb?: number | null;
   temperature_c?: number | null;
   queue_pending: number;
   queue_processing: number;

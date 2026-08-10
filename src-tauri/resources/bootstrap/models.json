@@ -1,13 +1,20 @@
 {
-  "version": 1,
-  "description": "Optional first-launch downloads. Keep weights out of git. Enable with IFORGE_ENABLE_MODEL_DOWNLOADS=1.",
+  "version": 2,
+  "description": "Optional first-launch downloads. Keep weights out of git. Enable with IFORGE_ENABLE_MODEL_DOWNLOADS=1. Large SDXL files are optional — symlink local weights via IFORGE_EXTRA_MODEL_DIRS when preferred.",
   "models": [
     {
       "name": "readme-marker",
       "path": "README.downloaded.txt",
       "url": "https://raw.githubusercontent.com/github/gitignore/main/Python.gitignore",
       "required": false,
-      "notes": "Tiny resumable smoke asset. Replace with SDXL / GGUF URLs for real installs."
+      "notes": "Tiny resumable smoke asset to verify download plumbing."
+    },
+    {
+      "name": "sdxl-base-1.0",
+      "path": "checkpoints/sd_xl_base_1.0.safetensors",
+      "url": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors",
+      "required": false,
+      "notes": "Official SDXL base (~6.9GB). Mirrored into ComfyUI/models/checkpoints/ when ComfyUI is present."
     },
     {
       "name": "ip-adapter-faceid-plusv2-sdxl",
@@ -31,11 +38,18 @@
       "notes": "AnimateDiff SDXL motion module. Place under ComfyUI/models/animatediff_models/."
     },
     {
+      "name": "wav2lip-gan",
+      "path": "wav2lip/wav2lip_gan.pth",
+      "url": "https://huggingface.co/Nekochu/Wav2Lip/resolve/main/wav2lip_gan.pth",
+      "required": false,
+      "notes": "Wav2Lip gan checkpoint (~416MB). Prefer ./scripts/install-wav2lip.sh which also clones the ComfyUI node into the right place."
+    },
+    {
       "name": "llama-3.2-1b-instruct-q4",
       "path": "llm/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
       "url": "https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
       "required": false,
-      "notes": "Optional local LLM for scene enrich. Needs llama-cpp-python (uv sync --group llm). Enable downloads with IFORGE_ENABLE_MODEL_DOWNLOADS=1."
+      "notes": "Optional local LLM for scene enrich. Needs llama-cpp-python (uv sync --group llm)."
     }
   ]
 }

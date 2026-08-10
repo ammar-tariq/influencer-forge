@@ -139,6 +139,8 @@ Create post → **Video**:
 - Needs **ffmpeg** (or `imageio-ffmpeg`) before Comfy runs — clear error otherwise.
 - Face Seed + FaceID on by default at 384×640; if FaceID weights/nodes are missing, the job **fails** unless you set `IFORGE_VIDEO_FACEID=0` (identity may drift).
 - No Pillow stub for video/lip_sync (avoids fake “completed” PNGs).
+- Talking head prefers Wav2Lip after `./scripts/install-wav2lip.sh` + ComfyUI restart; otherwise ffmpeg face+audio mux.
+- NSFW generations inject a matching LoRA from `models/loras/` when the filename contains nsfw/nude/explicit.
 
 ## Talking head (lip-sync)
 

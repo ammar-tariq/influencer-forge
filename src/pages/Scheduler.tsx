@@ -59,6 +59,16 @@ export function Scheduler() {
     onError: (err: Error) => setMessage(err.message),
   });
 
+  const syncGoogle = useMutation({
+    mutationFn: api.syncSchedulesGoogle,
+    onSuccess: (res) => {
+      const err = res.errors?.length ? ` (${res.errors.length} errors)` : "";
+      setMessage(`Synced ${res.synced} schedule(s) to Google Calendar${err}.`);
+      void qc.invalidateQueries({ queryKey: ["schedules"] });
+    },
+    onError: (err: Error) => setMessage(err.message),
+  });
+
   const due = reminders.data?.reminders ?? [];
   const hasSchedules = (schedules.data ?? []).length > 0;
 
@@ -68,19 +78,29 @@ export function Scheduler() {
         <div>
           <h1 className="text-3xl tracking-tight">Scheduler</h1>
           <p className="muted mt-1">
-            Local reminders to create posts. Export .ics to import into Google or Apple Calendar —
-            due items also show here and on Studio home.
+            Local reminders to create posts. Export .ics for Apple/Google import, or connect Google
+            OAuth in Settings and sync events here.
           </p>
         </div>
         {hasSchedules && (
-          <button
-            type="button"
-            className="btn secondary"
-            disabled={exportIcs.isPending}
-            onClick={() => exportIcs.mutate(undefined)}
-          >
-            {exportIcs.isPending ? "Exporting…" : "Export all .ics"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="btn secondary"
+              disabled={exportIcs.isPending}
+              onClick={() => exportIcs.mutate(undefined)}
+            >
+              {exportIcs.isPending ? "Exporting…" : "Export all .ics"}
+            </button>
+            <button
+              type="button"
+              className="btn secondary"
+              disabled={syncGoogle.isPending}
+              onClick={() => syncGoogle.mutate()}
+            >
+              {syncGoogle.isPending ? "Syncing…" : "Sync to Google"}
+            </button>
+          </div>
         )}
       </header>
 

@@ -310,6 +310,12 @@ export const api = {
         triggered_at?: string;
       }>;
     }>("/api/schedules/reminders"),
+  googleCalendarAuthUrl: () =>
+    request<{ url: string; redirect_uri: string }>("/api/schedules/google/auth-url"),
+  syncSchedulesGoogle: () =>
+    request<{ status: string; synced: number; errors: string[] }>("/api/schedules/sync-google", {
+      method: "POST",
+    }),
   /** Download .ics for Google Calendar / Apple Calendar import. */
   downloadSchedulesIcs: async (scheduleId?: number) => {
     const path =

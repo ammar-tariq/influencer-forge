@@ -41,6 +41,7 @@ from forge_python.models import (
     InfluencerCreate,
     GenerationBatchCreate,
     GenerationBatchResponse,
+    GoogleCodeExchange,
     InfluencerDetail,
     Looks,
     LooksCreate,
@@ -62,6 +63,7 @@ from forge_python.models import (
     WardrobeCreate,
     WardrobeItem,
 )
+from forge_python import calendar_sync
 from forge_python.ics_export import build_calendar
 from forge_python.lip_sync import resolve_audio_path
 from forge_python.post_processing import process_image
@@ -1175,15 +1177,41 @@ async def post_process(body: PostProcessRequest) -> dict[str, str]:
 
 
 # --- Settings ---
+_SECRET_SETTING_KEYS = frozenset(
+    {
+        "openai_api_key",
+        "anthropic_api_key",
+        "gemini_api_key",
+        "google_client_secret",
+        "google_refresh_token",
+    }
+)
+
+
 @app.get("/api/settings", response_model=list[SettingItem])
 async def list_settings() -> list[SettingItem]:
     rows = await db.fetchall("SELECT key, value FROM settings ORDER BY key")
-    return [SettingItem(key=r["key"], value=r["value"]) for r in rows]
+    out: list[SettingItem] = []
+    for r in rows:
+        key = str(r["key"])
+        value = str(r["value"])
+        if key in _SECRET_SETTING_KEYS and value:
+            value = "__set__"
+        out.append(SettingItem(key=key, value=value))
+    return out
 
 
 @app.put("/api/settings", response_model=SettingItem)
 async def put_setting(body: SettingItem) -> SettingItem:
+    # UI may send the masked sentinel — never persist it over a real secret.
+    if body.key in _SECRET_SETTING_KEYS and body.value in {"", "__set__"}:
+        existing = await db.get_setting(body.key)
+        if existing:
+            return SettingItem(key=body.key, value="__set__")
+        raise HTTPException(400, f"{body.key} is empty")
     await db.set_setting(body.key, body.value)
+    if body.key in _SECRET_SETTING_KEYS:
+        return SettingItem(key=body.key, value="__set__")
     return body
 
 
@@ -1353,6 +1381,122 @@ async def export_schedule_ics(schedule_id: int) -> Response:
             "Content-Disposition": f'attachment; filename="influencerforge-schedule-{schedule_id}.ics"'
         },
     )
+
+
+def _google_redirect_uri() -> str:
+    return f"http://127.0.0.1:{settings.port}/api/schedules/google/callback"
+
+
+@app.get("/api/schedules/google/auth-url")
+async def google_calendar_auth_url() -> dict[str, str]:
+    client_id = await db.get_setting("google_client_id")
+    if not client_id:
+        raise HTTPException(
+            400,
+            "Set google_client_id (and secret) under Settings → Google Calendar first.",
+        )
+    url = calendar_sync.google_auth_url(client_id, redirect_uri=_google_redirect_uri())
+    return {"url": url, "redirect_uri": _google_redirect_uri()}
+
+
+@app.get("/api/schedules/google/callback")
+async def google_calendar_callback(code: str = "", error: str = "") -> Response:
+    if error:
+        return Response(
+            content=f"<html><body><p>Google auth error: {error}</p></body></html>",
+            media_type="text/html",
+        )
+    if not code.strip():
+        raise HTTPException(400, "Missing OAuth code")
+    client_id = await db.get_setting("google_client_id")
+    client_secret = await db.get_setting("google_client_secret")
+    if not client_id or not client_secret:
+        raise HTTPException(400, "Google client id/secret not configured")
+    try:
+        tokens = calendar_sync.exchange_code_for_tokens(
+            client_id=client_id,
+            client_secret=client_secret,
+            code=code,
+            redirect_uri=_google_redirect_uri(),
+        )
+    except Exception as exc:
+        raise HTTPException(400, f"Token exchange failed: {exc}") from exc
+    if tokens.get("refresh_token"):
+        await db.set_setting("google_refresh_token", tokens["refresh_token"])
+    html = (
+        "<html><body style='font-family:system-ui;padding:2rem'>"
+        "<h1>Google Calendar connected</h1>"
+        "<p>You can close this tab and return to InfluencerForge → Scheduler → Sync to Google.</p>"
+        "</body></html>"
+    )
+    return Response(content=html, media_type="text/html")
+
+
+@app.post("/api/schedules/google/exchange")
+async def google_calendar_exchange(body: GoogleCodeExchange) -> dict[str, str]:
+    """Paste-code fallback when the browser redirect flow is unavailable."""
+    client_id = await db.get_setting("google_client_id")
+    client_secret = await db.get_setting("google_client_secret")
+    if not client_id or not client_secret:
+        raise HTTPException(400, "Google client id/secret not configured")
+    redirect = body.redirect_uri or _google_redirect_uri()
+    try:
+        tokens = calendar_sync.exchange_code_for_tokens(
+            client_id=client_id,
+            client_secret=client_secret,
+            code=body.code,
+            redirect_uri=redirect,
+        )
+    except Exception as exc:
+        raise HTTPException(400, f"Token exchange failed: {exc}") from exc
+    if tokens.get("refresh_token"):
+        await db.set_setting("google_refresh_token", tokens["refresh_token"])
+    return {"status": "connected", "has_refresh_token": "1" if tokens.get("refresh_token") else "0"}
+
+
+@app.post("/api/schedules/sync-google")
+async def sync_schedules_google() -> dict[str, Any]:
+    client_id = await db.get_setting("google_client_id")
+    client_secret = await db.get_setting("google_client_secret")
+    refresh = await db.get_setting("google_refresh_token")
+    if not client_id or not client_secret or not refresh:
+        raise HTTPException(
+            400,
+            "Google Calendar not connected. Add client id/secret in Settings, then Connect Google.",
+        )
+    try:
+        access = calendar_sync.refresh_access_token(
+            client_id=client_id,
+            client_secret=client_secret,
+            refresh_token=refresh,
+        )
+    except Exception as exc:
+        raise HTTPException(400, f"Google token refresh failed: {exc}") from exc
+
+    rows = await db.fetchall("SELECT * FROM schedules WHERE is_active = 1 ORDER BY id ASC")
+    names = await _influencer_names()
+    synced = 0
+    errors: list[str] = []
+    for row in rows:
+        schedule = dict(row)
+        try:
+            event_id = calendar_sync.upsert_schedule_event(
+                access_token=access,
+                schedule=schedule,
+                influencer_name=names.get(int(schedule["influencer_id"]), "Influencer"),
+            )
+            await db.execute(
+                """
+                UPDATE schedules
+                SET calendar_event_id = ?, calendar_provider = ?
+                WHERE id = ?
+                """,
+                (event_id, "google", int(schedule["id"])),
+            )
+            synced += 1
+        except Exception as exc:
+            errors.append(f"schedule {schedule.get('id')}: {exc}")
+    return {"status": "ok", "synced": synced, "errors": errors}
 
 
 # --- Vault ---

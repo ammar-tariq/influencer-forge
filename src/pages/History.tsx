@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, mediaUrl, vaultRevealUrl } from "../api/client";
 import { BackLink } from "../components/common/BackLink";
+import { DragCrop } from "../components/common/DragCrop";
 import { GenerationCard } from "../components/common/GenerationCard";
 import { ImageLightbox } from "../components/common/ImageLightbox";
 import { PinPrompt } from "../components/common/PinPrompt";
@@ -389,6 +390,20 @@ export function History() {
                       </>
                     )}
                   </div>
+                  {detailSrc && (
+                    <DragCrop
+                      src={detailSrc}
+                      disabled={editPost.isPending}
+                      onCrop={(box) => {
+                        setCropX1(String(box[0]));
+                        setCropY1(String(box[1]));
+                        setCropX2(String(box[2]));
+                        setCropY2(String(box[3]));
+                        setEditError(null);
+                        editPost.mutate({ generation_id: selected.id, crop: box });
+                      }}
+                    />
+                  )}
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     <div className="field">
                       <label>x1</label>
