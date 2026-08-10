@@ -79,3 +79,30 @@ async def test_faceid_and_animatediff_optional_checklist(
     assert any(i["id"] == "animatediff" and i["ok"] for i in data["checklist"])
     # Optional extras must not gate core "real" mode by themselves.
     assert data["real_ready"] is False
+
+
+def test_instantid_weights_present(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from forge_python import config
+    from forge_python.readiness import instantid_custom_node_installed, instantid_weights_present
+
+    comfy = tmp_path / "ComfyUI"
+    (comfy / "custom_nodes" / "ComfyUI_InstantID").mkdir(parents=True)
+    (comfy / "models" / "instantid").mkdir(parents=True)
+    (comfy / "models" / "controlnet").mkdir(parents=True)
+    ant = comfy / "models" / "insightface" / "models" / "antelopev2"
+    ant.mkdir(parents=True)
+    (comfy / "models" / "instantid" / "ip-adapter.bin").write_bytes(b"x" * 2048)
+    cn = comfy / "models" / "controlnet" / "instantid_sdxl_controlnet.safetensors"
+    with cn.open("wb") as fh:
+        fh.truncate(11_000_000)
+    (ant / "scrfd_10g_bnkps.onnx").write_bytes(b"z" * 100)
+
+    monkeypatch.setattr(config.settings, "comfyui_root", comfy)
+    monkeypatch.setattr(config.settings, "models_dir", tmp_path / "models")
+    monkeypatch.setattr(config.settings, "extra_model_dirs", [])
+    monkeypatch.setattr("forge_python.readiness.settings", config.settings)
+
+    assert instantid_custom_node_installed() is True
+    weights = instantid_weights_present()
+    assert weights["ok"] is True
+    assert weights["controlnet"] is not None
