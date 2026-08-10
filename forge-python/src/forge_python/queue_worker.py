@@ -198,6 +198,7 @@ class QueueWorker:
             user_prompt=layers.scene,
             wardrobe_keywords=layers.wardrobe_keywords,
             clothing_from_wardrobe=layers.clothing_from_wardrobe,
+            age=(looks or {}).get("age"),
         )
         await self.db.execute(
             """

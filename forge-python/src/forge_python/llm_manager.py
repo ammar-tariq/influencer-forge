@@ -42,6 +42,20 @@ _GENDER_PHRASE = {
     "trans girl": "trans woman, feminine presentation",
 }
 
+# Adult silhouette fields that fight age-accurate under-18 bodies.
+_ADULT_BODY_KEYS = frozenset({"breast_size", "butt_size", "waist", "hips"})
+
+# Body-type labels that imply mature curves — remap under 18.
+_YOUTH_BODY_TYPE_MAP = {
+    "curvy": "slim youthful build",
+    "hourglass": "slim youthful build",
+    "pear": "slim youthful build",
+    "apple": "soft youthful midsection",
+    "plus-size": "soft youthful build",
+    "soft / plump": "soft youthful build",
+    "muscular": "lightly athletic youth",
+}
+
 _QUALITY_NEGATIVE = (
     "blurry, low quality, deformed, bad anatomy, extra limbs, watermark, text, logo, "
     "cartoon, anime, illustration, painting, cgi, 3d render, plastic skin, "
@@ -103,11 +117,65 @@ def prompt_requests_full_nude(text: str) -> bool:
     return any(token in lowered for token in nude_tokens)
 
 
-def gender_phrase(gender: str | None) -> str:
+def gender_phrase(gender: str | None, age: int | None = None) -> str:
+    """Person noun for prompts; under 18 uses girl/boy so SDXL does not default to adult."""
     if not gender:
-        return "woman"
-    key = gender.strip().lower()
-    return _GENDER_PHRASE.get(key, key)
+        base_key = "female"
+    else:
+        base_key = gender.strip().lower()
+    adult = _GENDER_PHRASE.get(base_key, gender.strip() if gender else "person")
+    if age is None or age >= 18:
+        return adult
+    if base_key in ("female", "trans girl"):
+        return "girl" if age < 15 else "teenage girl"
+    if base_key == "male":
+        return "boy" if age < 15 else "teenage boy"
+    return adult
+
+
+def _normalize_youth_body(body: dict[str, str], age: int) -> dict[str, str]:
+    """Drop / remap adult body tokens so height + age drive proportions."""
+    out: dict[str, str] = {}
+    for key, val in body.items():
+        if not val:
+            continue
+        if key in _ADULT_BODY_KEYS:
+            continue
+        if key == "body_type":
+            mapped = _YOUTH_BODY_TYPE_MAP.get(str(val).strip().lower())
+            out[key] = mapped or f"{val}, youthful proportions"
+            continue
+        if key == "muscle_tone":
+            lowered = str(val).strip().lower()
+            if "very muscular" in lowered or "athletic definition" in lowered:
+                out[key] = "lightly toned youthful"
+                continue
+        if key == "chest":
+            lowered = str(val).strip().lower()
+            if "broad" in lowered or "muscular" in lowered:
+                out[key] = "slim youthful chest"
+                continue
+        out[key] = val
+    return out
+
+
+def _age_body_cues(age: int, height: str | None) -> list[str]:
+    """Strong positive tokens so height stays but body matches stated age."""
+    cues = [
+        f"age-accurate {age}-year-old body proportions",
+        "youthful frame matching stated age, not an adult body",
+        "no mature curves",
+    ]
+    if height and str(height).strip():
+        cues.append(
+            f"height: {height.strip()}, true-to-age stature for a {age}-year-old "
+            f"(same height band, child/teen proportions not adult)"
+        )
+    if age <= 14:
+        cues.append("early adolescent proportions, still-growing physique")
+    elif age <= 17:
+        cues.append("teenage proportions, not fully adult silhouette")
+    return cues
 
 
 def build_system_prompt(name: str, bio: str | None, traits: dict[str, str], niche: str) -> str:
@@ -152,8 +220,11 @@ def build_looks_prompt(
     When face_locked, omit hair/eyes/style text — the reference image is the source
     of truth. Wizard fields like \"Red Bob\" otherwise fight a curly lock photo.
     Nationality stays even when locked so body/scene cues (e.g. Russian, Chinese) remain.
+
+    Under 18: use girl/boy phrasing, keep height, drop adult breast/hip/butt tokens,
+    and add explicit age-accurate proportion cues so SDXL does not invent an adult body.
     """
-    person = gender_phrase(gender)
+    person = gender_phrase(gender, age)
     nationality_token = None
     if nationality and str(nationality).strip():
         nat = str(nationality).strip()
@@ -171,7 +242,16 @@ def build_looks_prompt(
         parts.append(f"{hair_color} {hair_style} hair" if hair_color or hair_style else None)
         parts.append(f"{eye_color} eyes" if eye_color else None)
 
-    body = body or {}
+    raw_body = body or {}
+    youth = age is not None and age < 18
+    if youth:
+        body = _normalize_youth_body(raw_body, age)
+        # Height is stated in age cues — avoid duplicating a bare height line.
+        for cue in _age_body_cues(age, raw_body.get("height")):
+            parts.append(cue)
+    else:
+        body = dict(raw_body)
+
     if face_locked:
         # Shape only — skip noisy tags (body_hair, long muscle essays) that mush quality.
         body_order = (
@@ -199,6 +279,8 @@ def build_looks_prompt(
             "body_hair",
         )
     for key in body_order:
+        if youth and key == "height":
+            continue  # already in age/height cues
         val = body.get(key)
         if not val:
             continue
@@ -291,6 +373,12 @@ def expand_prompt(
     return f"{scene}{wardrobe_bit}, {identity}, {extra}{quality}".replace(", ,", ",")
 
 
+_YOUTH_NEGATIVE = (
+    "adult body, mature woman, mature man, voluptuous, exaggerated curves, "
+    "large breasts, wide hips, heavy makeup, bodybuilder physique"
+)
+
+
 def resolve_negative_prompt(
     *,
     is_nsfw: bool,
@@ -298,22 +386,29 @@ def resolve_negative_prompt(
     user_prompt: str | None = None,
     wardrobe_keywords: str | None = None,
     clothing_from_wardrobe: bool = False,
+    age: int | None = None,
 ) -> str:
     if custom and custom.strip():
         return custom.strip()
     if not is_nsfw:
-        return SFW_NEGATIVE
-    from_wardrobe = bool(clothing_from_wardrobe or (wardrobe_keywords and wardrobe_keywords.strip()))
-    clothing_src = (
-        wardrobe_keywords
-        if from_wardrobe and wardrobe_keywords
-        else (user_prompt or "")
-    )
-    if from_wardrobe or (
-        prompt_requests_revealing_outfit(clothing_src) and not prompt_requests_full_nude(clothing_src)
-    ):
-        return NSFW_OUTFIT_NEGATIVE
-    return NSFW_NUDE_NEGATIVE
+        base = SFW_NEGATIVE
+    else:
+        from_wardrobe = bool(clothing_from_wardrobe or (wardrobe_keywords and wardrobe_keywords.strip()))
+        clothing_src = (
+            wardrobe_keywords
+            if from_wardrobe and wardrobe_keywords
+            else (user_prompt or "")
+        )
+        if from_wardrobe or (
+            prompt_requests_revealing_outfit(clothing_src)
+            and not prompt_requests_full_nude(clothing_src)
+        ):
+            base = NSFW_OUTFIT_NEGATIVE
+        else:
+            base = NSFW_NUDE_NEGATIVE
+    if age is not None and age < 18:
+        return f"{base}, {_YOUTH_NEGATIVE}"
+    return base
 
 
 def smart_daily_suggestions(niche: str, scenes: list[str] | None = None) -> list[str]:

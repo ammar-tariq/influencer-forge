@@ -115,6 +115,39 @@ def test_face_locked_prompt_leads_with_identity() -> None:
     assert expanded.index("identical face") < expanded.index("full body beach")
 
 
+def test_youth_looks_keep_height_drop_adult_body() -> None:
+    looks = build_looks_prompt(
+        age=12,
+        ethnicity="Caucasian",
+        hair_color="Brown",
+        hair_style="Long",
+        eye_color="Blue",
+        style="Casual",
+        gender="Female",
+        body={
+            "height": 'Petite (under 5\'3" / 160cm)',
+            "body_type": "Hourglass",
+            "breast_size": "Full / large",
+            "butt_size": "Very large",
+            "hips": "Wide hips",
+            "waist": "Narrow waist",
+        },
+    )
+    assert "12-year-old girl" in looks
+    assert "woman" not in looks
+    assert "Petite" in looks
+    assert "true-to-age stature" in looks
+    assert "age-accurate 12-year-old body" in looks
+    assert "breast" not in looks.lower()
+    assert "butt" not in looks.lower()
+    assert "Wide hips" not in looks
+    assert "Hourglass" not in looks
+    assert "slim youthful" in looks
+    neg = resolve_negative_prompt(is_nsfw=False, age=12)
+    assert "adult body" in neg
+    assert "large breasts" in neg
+
+
 def test_face_locked_looks_omit_hair_text() -> None:
     """Wizard 'Red Bob' must not override a curly lock photo."""
     locked = build_looks_prompt(

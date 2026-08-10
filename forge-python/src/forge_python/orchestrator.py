@@ -832,6 +832,7 @@ async def _enqueue_generation(
         user_prompt=layers.scene,
         wardrobe_keywords=layers.wardrobe_keywords,
         clothing_from_wardrobe=layers.clothing_from_wardrobe,
+        age=(looks or {}).get("age"),
     )
     use_seed: int | None = body.seed if seed is _SEED_FROM_BODY else seed  # type: ignore[assignment]
     cur = await db.execute(
@@ -1008,6 +1009,7 @@ async def replace_generation(generation_id: int, body: GenerationReplace) -> Gen
         user_prompt=layers.scene,
         wardrobe_keywords=layers.wardrobe_keywords,
         clothing_from_wardrobe=layers.clothing_from_wardrobe,
+        age=(looks or {}).get("age"),
     )
     wardrobe_id = wardrobe_id if layers.clothing_from_wardrobe else None
     workflow_type = body.workflow_type or row["workflow_type"]
