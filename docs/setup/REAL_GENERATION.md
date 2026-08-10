@@ -26,7 +26,7 @@
 3. On the profile, **Face lock setup** shows those options as they finish (queue concurrency is 1). Edit the prompt and **Generate 4 face options** again, re-roll a card, or upload a Face Seed, then **Use this face**. Until locked, later gens won’t use FaceID / img2img identity.
 4. **Edit** personality/looks on the profile anytime (`PATCH` APIs). Changing hair/eyes/ethnicity while locked shows a “re-lock face” banner (lock is not auto-cleared).
 5. **Influencers** (sidebar) lists everyone; open a card for personality/looks, all their posts, Create post, or Archive.
-6. **Library** (`/history`) filters with `?influencer={id}` — also linked from each profile (“All posts” / “Their posts”).
+6. **Library** (`/history`) filters with `?influencer={id}` — also linked from each profile (“All posts” / “Their posts”). Open a post and use **Delete post** (confirm) to remove it and its media (`DELETE /api/generations/{id}`).
 7. **Create post** defaults to **full body** and offers Pose / Dressing / Setting presets (including nude). You can still add free notes. Wardrobe (if assigned) is the sole clothing source; dressing presets apply only when no wardrobe is selected. Nude/topless and wardrobe cannot be combined.
 8. Progress for the active job shows in the right-hand Progress panel.
 

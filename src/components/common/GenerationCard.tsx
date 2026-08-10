@@ -9,13 +9,13 @@ type Props = {
 };
 
 export function GenerationCard({ generation: g, imagePath, onClick }: Props) {
-  const isVideo =
-    g.workflow_type === "video" || Boolean(g.output_path?.match(/\.(mp4|webm|mov)$/i));
+  const hasPlayableVideo = Boolean(g.output_path?.match(/\.(mp4|webm|mov)$/i));
+  const videoJob = g.workflow_type === "video";
   const path =
     imagePath ??
     (g.is_vaulted
       ? g.teaser_path
-      : (g.output_thumbnail_path ?? (isVideo ? null : g.output_path) ?? g.teaser_path));
+      : (g.output_thumbnail_path ?? (hasPlayableVideo ? null : g.output_path) ?? g.teaser_path));
 
   return (
     <button type="button" className="panel gen-card text-left" onClick={onClick}>
@@ -24,7 +24,15 @@ export function GenerationCard({ generation: g, imagePath, onClick }: Props) {
           path={path}
           alt=""
           className="h-40 w-full rounded-xl object-cover"
-          fallback={g.status === "completed" ? (isVideo ? "Video" : "No preview") : g.status}
+          fallback={
+            g.status === "completed"
+              ? videoJob && !hasPlayableVideo
+                ? "Video failed"
+                : hasPlayableVideo
+                  ? "Video"
+                  : "No preview"
+              : g.status
+          }
           cacheKey={g.completed_at ?? g.seed ?? g.id}
           faceFocus
         />
@@ -34,9 +42,9 @@ export function GenerationCard({ generation: g, imagePath, onClick }: Props) {
           isNsfw={g.is_nsfw}
           overlay
         />
-        {isVideo && (
+        {videoJob && (
           <span className="status-badge tone-busy" style={{ position: "absolute", left: "0.55rem", top: "0.55rem" }}>
-            Video
+            {hasPlayableVideo ? "Video" : "Video (no mp4)"}
           </span>
         )}
       </div>

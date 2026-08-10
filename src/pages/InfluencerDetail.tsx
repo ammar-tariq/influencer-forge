@@ -33,6 +33,7 @@ export function InfluencerDetail() {
   const [faceFile, setFaceFile] = useState<File | null>(null);
   const [assignOutfit, setAssignOutfit] = useState<number | "">("");
   const [deleteArmed, setDeleteArmed] = useState(false);
+  const [deletePostArmed, setDeletePostArmed] = useState(false);
 
   const detail = useQuery({
     queryKey: ["influencer", influencerId],
@@ -121,6 +122,16 @@ export function InfluencerDetail() {
     onSuccess: invalidate,
   });
 
+  const removePost = useMutation({
+    mutationFn: (gid: number) => api.deleteGeneration(gid),
+    onSuccess: async () => {
+      setSelected(null);
+      setDeletePostArmed(false);
+      if (reveal.viewUnlocked) await reveal.endReveal();
+      invalidate();
+    },
+  });
+
   const lockFace = useMutation({
     mutationFn: (generationId: number) =>
       api.lockFace(influencerId, { generation_id: generationId }),
@@ -206,6 +217,7 @@ export function InfluencerDetail() {
 
   const closeLightbox = async () => {
     setSelected(null);
+    setDeletePostArmed(false);
     if (reveal.viewUnlocked) await reveal.endReveal();
   };
 
@@ -536,6 +548,37 @@ export function InfluencerDetail() {
               <Link className="btn secondary" to="/edit-posts">
                 Replace post
               </Link>
+              {!deletePostArmed ? (
+                <button
+                  className="btn secondary"
+                  disabled={
+                    removePost.isPending ||
+                    selected.status === "queued" ||
+                    selected.status === "running"
+                  }
+                  onClick={() => setDeletePostArmed(true)}
+                >
+                  Delete post
+                </button>
+              ) : (
+                <>
+                  <button
+                    className="btn"
+                    style={{ background: "var(--danger)", color: "#1a0a0a" }}
+                    disabled={removePost.isPending}
+                    onClick={() => removePost.mutate(selected.id)}
+                  >
+                    {removePost.isPending ? "Deleting…" : "Yes, delete post"}
+                  </button>
+                  <button
+                    className="btn secondary"
+                    disabled={removePost.isPending}
+                    onClick={() => setDeletePostArmed(false)}
+                  >
+                    Cancel
+                  </button>
+                </>
+              )}
             </div>
           </>
         )}

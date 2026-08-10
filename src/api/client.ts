@@ -225,6 +225,10 @@ export const api = {
     const suffix = q.toString() ? `?${q}` : "";
     return request<Generation>(`/api/generations/${id}/regenerate${suffix}`, { method: "POST" });
   },
+  deleteGeneration: (id: number) =>
+    request<{ status: string; id: number; files_removed: number }>(`/api/generations/${id}`, {
+      method: "DELETE",
+    }),
   replaceGeneration: (
     id: number,
     body: {

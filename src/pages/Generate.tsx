@@ -179,9 +179,7 @@ export function Generate() {
 
   const mode = readiness.data?.mode ?? "stub";
   const result = active.data;
-  const resultIsVideo =
-    result?.workflow_type === "video" ||
-    Boolean(result?.output_path?.match(/\.(mp4|webm|mov)$/i));
+  const resultIsVideo = Boolean(result?.output_path?.match(/\.(mp4|webm|mov)$/i));
   const resultSrc =
     result?.status === "completed"
       ? (result.output_path ?? result.output_thumbnail_path ?? result.teaser_path)

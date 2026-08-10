@@ -22,6 +22,7 @@ export function History() {
   );
   const [nsfw, setNsfw] = useState<"all" | "sfw" | "nsfw">("all");
   const [selected, setSelected] = useState<Generation | null>(null);
+  const [deleteArmed, setDeleteArmed] = useState(false);
 
   useEffect(() => {
     const fromUrl = params.get("influencer");
@@ -43,6 +44,16 @@ export function History() {
   const regenerate = useMutation({
     mutationFn: (id: number) => api.regenerate(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["generations"] }),
+  });
+
+  const removePost = useMutation({
+    mutationFn: (id: number) => api.deleteGeneration(id),
+    onSuccess: async () => {
+      setSelected(null);
+      setDeleteArmed(false);
+      if (reveal.viewUnlocked) await reveal.endReveal();
+      await qc.invalidateQueries({ queryKey: ["generations"] });
+    },
   });
 
   const browseUnlocked = Boolean(vaultStatus.data?.unlocked);
@@ -85,6 +96,7 @@ export function History() {
 
   const closeLightbox = async () => {
     setSelected(null);
+    setDeleteArmed(false);
     if (reveal.viewUnlocked) await reveal.endReveal();
   };
 
@@ -207,6 +219,7 @@ export function History() {
               : detailSrc
             : null
         }
+        isVideo={Boolean(selected?.output_path?.match(/\.(mp4|webm|mov)$/i))}
         placeholder={`${selected?.status ?? ""}${selected?.error_message ? ` — ${selected.error_message}` : ""}`}
         hasPrev={hasPrev}
         hasNext={hasNext}
@@ -225,16 +238,43 @@ export function History() {
               <button className="btn" onClick={() => regenerate.mutate(selected.id)}>
                 Regenerate
               </button>
+              {detailSrc && !selected.is_vaulted && (
+                <a className="btn secondary" href={detailSrc} target="_blank" rel="noreferrer">
+                  Open in new tab
+                </a>
+              )}
+              {!deleteArmed ? (
+                <button
+                  className="btn secondary"
+                  disabled={removePost.isPending || selected.status === "queued" || selected.status === "running"}
+                  onClick={() => setDeleteArmed(true)}
+                >
+                  Delete post
+                </button>
+              ) : (
+                <>
+                  <button
+                    className="btn"
+                    style={{ background: "var(--danger)", color: "#1a0a0a" }}
+                    disabled={removePost.isPending}
+                    onClick={() => removePost.mutate(selected.id)}
+                  >
+                    {removePost.isPending ? "Deleting…" : "Yes, delete post"}
+                  </button>
+                  <button
+                    className="btn secondary"
+                    disabled={removePost.isPending}
+                    onClick={() => setDeleteArmed(false)}
+                  >
+                    Cancel
+                  </button>
+                </>
+              )}
               {selected.is_nsfw && !selected.is_vaulted && (
                 <p className="muted text-xs">
                   NSFW auto-vaults when Privacy vault is on
                   {browseUnlocked ? "…" : " — enable it in the sidebar to encrypt pending items."}
                 </p>
-              )}
-              {detailSrc && !selected.is_vaulted && (
-                <a className="btn secondary" href={detailSrc} target="_blank" rel="noreferrer">
-                  Open in new tab
-                </a>
               )}
             </div>
           </>

@@ -197,6 +197,34 @@ async def test_patch_personality_and_looks_face_lock_stale(client: AsyncClient) 
 
 
 @pytest.mark.asyncio
+async def test_delete_generation_removes_media(client: AsyncClient) -> None:
+    from forge_python import config
+    from forge_python.orchestrator import db
+
+    iid = await _create_influencer(client, "Poster")
+    out = config.settings.generations_dir / "99.png"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 8)
+    await db.execute(
+        """
+        INSERT INTO generations(
+            influencer_id, user_prompt, expanded_prompt, workflow_type,
+            model_used, llm_used, aspect_ratio, status, output_path, is_nsfw, is_vaulted
+        ) VALUES (?, 'p', 'p', 'image', 'stub', 'template', '9:16', 'completed', ?, 0, 0)
+        """,
+        (iid, str(out)),
+    )
+    row = await db.fetchone("SELECT id FROM generations WHERE influencer_id = ?", (iid,))
+    assert row
+    gid = int(row["id"])
+    deleted = await client.delete(f"/api/generations/{gid}")
+    assert deleted.status_code == 200
+    assert deleted.json()["status"] == "deleted"
+    assert not out.exists()
+    assert (await client.get(f"/api/generations/{gid}")).status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_delete_influencer_removes_generations(client: AsyncClient) -> None:
     from forge_python import config
     from forge_python.orchestrator import db

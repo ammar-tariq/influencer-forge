@@ -1,6 +1,6 @@
 {
   "name": "video_animate",
-  "description": "AnimateDiff Evolved short clip (SDXL motion). Optional IP-Adapter FaceID when face-locked. Requires ComfyUI-AnimateDiff-Evolved + Video Helper Suite.",
+  "description": "AnimateDiff Evolved Gen2 short clip (SDXL motion). Optional IP-Adapter FaceID when face-locked. Requires ComfyUI-AnimateDiff-Evolved + Video Helper Suite.",
   "stub": false,
   "model": "animate_diff",
   "meta": {
@@ -15,9 +15,11 @@
     "clip_vision_node": "13",
     "faceid_apply_node": "14",
     "ade_apply_node": "21",
+    "evolved_sampling_node": "22",
     "required_nodes": [
       "ADE_LoadAnimateDiffModel",
       "ADE_ApplyAnimateDiffModelSimple",
+      "ADE_UseEvolvedSampling",
       "VHS_VideoCombine"
     ],
     "motion_module": "mm_sdxl_v10_beta.safetensors",
@@ -35,22 +37,10 @@
         "sampler_name": "euler",
         "scheduler": "normal",
         "denoise": 1,
-        "model": [
-          "14",
-          0
-        ],
-        "positive": [
-          "6",
-          0
-        ],
-        "negative": [
-          "7",
-          0
-        ],
-        "latent_image": [
-          "5",
-          0
-        ]
+        "model": ["22", 0],
+        "positive": ["6", 0],
+        "negative": ["7", 0],
+        "latent_image": ["5", 0]
       }
     },
     "4": {
@@ -71,42 +61,27 @@
       "class_type": "CLIPTextEncode",
       "inputs": {
         "text": "POSITIVE_PROMPT",
-        "clip": [
-          "4",
-          1
-        ]
+        "clip": ["4", 1]
       }
     },
     "7": {
       "class_type": "CLIPTextEncode",
       "inputs": {
         "text": "NEGATIVE_PROMPT",
-        "clip": [
-          "4",
-          1
-        ]
+        "clip": ["4", 1]
       }
     },
     "8": {
       "class_type": "VAEDecode",
       "inputs": {
-        "samples": [
-          "3",
-          0
-        ],
-        "vae": [
-          "4",
-          2
-        ]
+        "samples": ["3", 0],
+        "vae": ["4", 2]
       }
     },
     "9": {
       "class_type": "VHS_VideoCombine",
       "inputs": {
-        "images": [
-          "8",
-          0
-        ],
+        "images": ["8", 0],
         "frame_rate": 8,
         "loop_count": 0,
         "filename_prefix": "influencerforge_vid",
@@ -136,22 +111,10 @@
     "14": {
       "class_type": "IPAdapterFaceID",
       "inputs": {
-        "model": [
-          "21",
-          0
-        ],
-        "ipadapter": [
-          "12",
-          0
-        ],
-        "image": [
-          "10",
-          0
-        ],
-        "clip_vision": [
-          "13",
-          0
-        ],
+        "model": ["4", 0],
+        "ipadapter": ["12", 0],
+        "image": ["10", 0],
+        "clip_vision": ["13", 0],
         "weight": 0.7,
         "weight_faceidv2": 1.0,
         "weight_type": "linear",
@@ -159,10 +122,7 @@
         "start_at": 0.0,
         "end_at": 1.0,
         "embeds_scaling": "V only",
-        "insightface": [
-          "15",
-          0
-        ]
+        "insightface": ["15", 0]
       }
     },
     "15": {
@@ -181,14 +141,15 @@
     "21": {
       "class_type": "ADE_ApplyAnimateDiffModelSimple",
       "inputs": {
-        "motion_model": [
-          "20",
-          0
-        ],
-        "model": [
-          "4",
-          0
-        ]
+        "motion_model": ["20", 0]
+      }
+    },
+    "22": {
+      "class_type": "ADE_UseEvolvedSampling",
+      "inputs": {
+        "model": ["14", 0],
+        "beta_schedule": "autoselect",
+        "m_models": ["21", 0]
       }
     }
   }

@@ -406,7 +406,8 @@ class ComfyUIClient:
             motion = find_motion_module()
             meta = bundle.get("meta") or {}
             motion_node = str(meta.get("motion_node", "20"))
-            ade_node = str(meta.get("ade_apply_node", "21"))
+            evolved_node = str(meta.get("evolved_sampling_node", "22"))
+            checkpoint_node = str(meta.get("checkpoint_node", "4"))
             seed_node = str(meta.get("seed_node", "3"))
             faceid_nodes = ("10", "12", "13", "14", "15")
             if motion and motion_node in (bundle.get("prompt") or {}):
@@ -437,13 +438,18 @@ class ComfyUIClient:
                     image_filename,
                 )
             else:
-                # Strip FaceID nodes so ComfyUI does not require IPAdapter for plain video.
+                # Strip FaceID; Gen2 ADE needs checkpoint MODEL into UseEvolvedSampling.
                 prompt_nodes = bundle.setdefault("prompt", {})
                 for nid in faceid_nodes:
                     prompt_nodes.pop(nid, None)
+                if evolved_node in prompt_nodes:
+                    prompt_nodes[evolved_node].setdefault("inputs", {})["model"] = [
+                        checkpoint_node,
+                        0,
+                    ]
                 if seed_node in prompt_nodes:
                     prompt_nodes[seed_node].setdefault("inputs", {})["model"] = [
-                        ade_node,
+                        evolved_node,
                         0,
                     ]
                 if face_reference and Path(face_reference).is_file():
@@ -540,7 +546,13 @@ class ComfyUIClient:
         )
         video = next((m for m in media if m.get("kind") == "video"), None)
         image = next((m for m in media if m.get("kind") == "image"), None)
-        if workflow_type == "video" and video:
+        if workflow_type == "video":
+            if not video:
+                raise RuntimeError(
+                    "Video encode failed: ComfyUI returned no mp4/gif. "
+                    "Install ffmpeg in PATH or `imageio-ffmpeg` in the ComfyUI venv, "
+                    "then restart ComfyUI (Video Helper Suite needs ffmpeg)."
+                )
             out = settings.generations_dir / f"{generation_id}.mp4"
             await self.download_image(video, out)
             thumb = settings.thumbnails_dir / f"{generation_id}_thumb.png"

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- AnimateDiff Gen2 video workflow: FaceID on checkpoint `MODEL`, then `ADE_UseEvolvedSampling` (fixes M_MODELS vs MODEL 400).
 - Under-18 looks prompts: girl/boy phrasing, keep selected height, drop adult breast/hip/butt tokens, age-accurate proportion cues + negatives.
 - FaceID / AnimateDiff workflows: set InsightFace `model_name` to `buffalo_l` (ComfyUI 400: required input missing).
 - Full reset / delete confirmations no longer use `window.confirm` (silent no-op in macOS Tauri); in-app confirm + cache clear after reset.
@@ -24,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Delete post from Library / profile lightbox (`DELETE /api/generations/{id}` removes DB row + media/vault files).
 - Batch face options on create/setup: `POST /api/generations/batch` queues 2–8 shots (wizard + profile default to 4) so users can pick a face to lock.
 - Influencers list + detail screens (`/influencers`, `/influencers/:id`) with personality/looks, per-influencer generations, archive, and Library deep links (`?influencer=`).
 - Face-lock setup on the profile: identity prompt retries, Face Seed upload, `POST /api/influencers/{id}/face-lock` (explicit lock; no longer auto-locks on first SFW).

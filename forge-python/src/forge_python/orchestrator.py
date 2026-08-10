@@ -594,24 +594,7 @@ async def delete_influencer(influencer_id: int) -> dict[str, Any]:
         "SELECT * FROM generations WHERE influencer_id = ?",
         (influencer_id,),
     )
-    removed_files = 0
-    for gen in gens:
-        for key in (
-            "output_path",
-            "output_thumbnail_path",
-            "teaser_path",
-            "vault_file_path",
-        ):
-            path = gen.get(key)
-            if not path:
-                continue
-            p = Path(str(path))
-            if p.is_file():
-                try:
-                    p.unlink()
-                    removed_files += 1
-                except OSError:
-                    pass
+    removed_files = sum(_unlink_generation_media(gen) for gen in gens)
     await db.execute("DELETE FROM influencer_wardrobe WHERE influencer_id = ?", (influencer_id,))
     await db.execute("DELETE FROM schedules WHERE influencer_id = ?", (influencer_id,))
     await db.execute("DELETE FROM generations WHERE influencer_id = ?", (influencer_id,))
@@ -751,6 +734,51 @@ async def get_generation(generation_id: int) -> Generation:
     if not row:
         raise HTTPException(404, "Not found")
     return Generation(**row)
+
+
+def _unlink_generation_media(gen: dict[str, Any]) -> int:
+    removed = 0
+    for key in (
+        "output_path",
+        "output_thumbnail_path",
+        "teaser_path",
+        "vault_file_path",
+    ):
+        path = gen.get(key)
+        if not path:
+            continue
+        p = Path(str(path))
+        if p.is_file():
+            try:
+                p.unlink()
+                removed += 1
+            except OSError:
+                pass
+    return removed
+
+
+@app.delete("/api/generations/{generation_id}")
+async def delete_generation(generation_id: int) -> dict[str, Any]:
+    """Hard-delete one post and its media (including vault ciphertext / teaser)."""
+    row = await db.fetchone("SELECT * FROM generations WHERE id = ?", (generation_id,))
+    if not row:
+        raise HTTPException(404, "Not found")
+    if row["status"] in ("queued", "running"):
+        raise HTTPException(400, "Wait for the job to finish (or fail) before deleting")
+
+    removed_files = _unlink_generation_media(row)
+    out = row.get("output_path")
+    if out:
+        await db.execute(
+            "UPDATE looks SET base_portrait_path = NULL WHERE base_portrait_path = ?",
+            (str(out),),
+        )
+    await db.execute(
+        "UPDATE generations SET parent_generation_id = NULL WHERE parent_generation_id = ?",
+        (generation_id,),
+    )
+    await db.execute("DELETE FROM generations WHERE id = ?", (generation_id,))
+    return {"status": "deleted", "id": generation_id, "files_removed": removed_files}
 
 
 _SEED_FROM_BODY = object()
