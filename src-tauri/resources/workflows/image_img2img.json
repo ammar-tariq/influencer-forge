@@ -9,8 +9,10 @@
     "seed_node": "3",
     "checkpoint_node": "4",
     "image_node": "10",
-    "denoise_default": 0.72,
-    "denoise_nsfw": 0.82
+    "denoise_default": 0.8,
+    "denoise_scene": 0.88,
+    "denoise_nsfw": 0.9,
+    "denoise_nsfw_scene": 0.94
   },
   "prompt": {
     "3": {
@@ -21,7 +23,7 @@
         "cfg": 6.5,
         "sampler_name": "euler",
         "scheduler": "normal",
-        "denoise": 0.72,
+        "denoise": 0.8,
         "model": ["4", 0],
         "positive": ["6", 0],
         "negative": ["7", 0],

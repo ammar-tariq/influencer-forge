@@ -22,6 +22,20 @@ _EXPLICIT_HINTS = (
     "undressed",
 )
 
+# Partial clothing the model should keep (do not also force "nude").
+_REVEALING_OUTFIT_HINTS = (
+    "bikini",
+    "swimsuit",
+    "swimwear",
+    "lingerie",
+    "bra and panties",
+    "underwear",
+    "micro bikini",
+    "thong",
+    "sheer",
+    "see-through",
+)
+
 _GENDER_PHRASE = {
     "female": "woman",
     "male": "man",
@@ -30,21 +44,56 @@ _GENDER_PHRASE = {
 
 SFW_NEGATIVE = (
     "blurry, low quality, deformed, bad anatomy, extra limbs, watermark, text, logo, "
-    "cropped head only, extreme close-up face only"
+    "cropped head only, extreme close-up face only, waist-up only when full body requested"
 )
 
-# Push the model away from clothing when generating adult content.
-NSFW_NEGATIVE = (
+# Fully unclothed asks — push away everyday clothes.
+NSFW_NUDE_NEGATIVE = (
     "blurry, low quality, deformed, bad anatomy, extra limbs, watermark, text, logo, "
-    "clothes, clothing, dressed, wearing clothes, shirt, blouse, bra, bikini top, "
-    "jacket, hoodie, sweater, dress, covered breasts, covered chest, "
-    "overly clothed, fabric covering torso, cropped head only"
+    "shirt, blouse, jeans, pants, jacket, hoodie, sweater, dress, coat, "
+    "fully clothed, everyday streetwear, covered breasts, covered chest, "
+    "cropped head only, waist-up only when full body requested"
 )
+
+# Bikini / lingerie asks — ban street clothes, not the outfit itself.
+NSFW_OUTFIT_NEGATIVE = (
+    "blurry, low quality, deformed, bad anatomy, extra limbs, watermark, text, logo, "
+    "jeans, pants, shirt, blouse, hoodie, sweater, jacket, coat, dress pants, "
+    "fully clothed streetwear, office clothes, winter coat, "
+    "cropped head only, waist-up only when full body requested"
+)
+
+# Backward-compatible alias used by older tests/docs.
+NSFW_NEGATIVE = NSFW_NUDE_NEGATIVE
 
 
 def prompt_implies_nsfw(text: str) -> bool:
     lowered = text.lower()
-    return any(hint in lowered for hint in _EXPLICIT_HINTS)
+    return any(hint in lowered for hint in _EXPLICIT_HINTS) or any(
+        hint in lowered for hint in _REVEALING_OUTFIT_HINTS
+    )
+
+
+def prompt_requests_revealing_outfit(text: str) -> bool:
+    lowered = text.lower()
+    return any(hint in lowered for hint in _REVEALING_OUTFIT_HINTS)
+
+
+def prompt_requests_full_nude(text: str) -> bool:
+    lowered = text.lower()
+    nude_tokens = (
+        "nude",
+        "naked",
+        "fully nude",
+        "no clothes",
+        "without clothes",
+        "undressed",
+        "topless",
+        "bottomless",
+        "bare breasts",
+        "bare chest",
+    )
+    return any(token in lowered for token in nude_tokens)
 
 
 def gender_phrase(gender: str | None) -> str:
@@ -136,13 +185,23 @@ def expand_prompt(
     scene = user_prompt.strip() or "full body standing pose, studio lighting"
 
     if is_nsfw:
-        nude_extra = ""
-        if not prompt_implies_nsfw(scene):
-            nude_extra = "nude, bare skin, "
+        outfit = prompt_requests_revealing_outfit(scene)
+        wants_nude = prompt_requests_full_nude(scene)
+        # Never stack "nude" on top of bikini/lingerie — that fights the outfit.
+        extra = ""
+        if not outfit and not wants_nude:
+            extra = "nude, bare skin, "
+        elif outfit and not wants_nude:
+            extra = "skin visible, wet look optional, "
+        framing = ""
+        if "full body" in scene.lower() or "head to toe" in scene.lower():
+            framing = "full body head to toe in frame, not a waist-up crop, "
+        elif "from behind" in scene.lower():
+            framing = "view from behind, face looking over shoulder, "
         return (
-            f"{scene}, {nude_extra}{influencer_name}, {looks_prompt}, "
+            f"{scene}, {extra}{framing}{influencer_name}, {looks_prompt}, "
             f"photorealistic adult photograph, natural skin texture, "
-            f"sharp focus, detailed anatomy, entire subject visible in frame"
+            f"sharp focus, detailed anatomy, match the requested pose and outfit"
         )
 
     wardrobe = f", wearing {wardrobe_keywords}" if wardrobe_keywords else ""
@@ -152,10 +211,20 @@ def expand_prompt(
     )
 
 
-def resolve_negative_prompt(*, is_nsfw: bool, custom: str | None = None) -> str:
+def resolve_negative_prompt(
+    *,
+    is_nsfw: bool,
+    custom: str | None = None,
+    user_prompt: str | None = None,
+) -> str:
     if custom and custom.strip():
         return custom.strip()
-    return NSFW_NEGATIVE if is_nsfw else SFW_NEGATIVE
+    if not is_nsfw:
+        return SFW_NEGATIVE
+    scene = user_prompt or ""
+    if prompt_requests_revealing_outfit(scene) and not prompt_requests_full_nude(scene):
+        return NSFW_OUTFIT_NEGATIVE
+    return NSFW_NUDE_NEGATIVE
 
 
 def smart_daily_suggestions(niche: str, scenes: list[str] | None = None) -> list[str]:

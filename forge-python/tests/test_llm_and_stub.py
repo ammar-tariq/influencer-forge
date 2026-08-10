@@ -7,6 +7,7 @@ from forge_python.llm_manager import (
     expand_prompt,
     gender_phrase,
     prompt_implies_nsfw,
+    prompt_requests_revealing_outfit,
     resolve_negative_prompt,
 )
 from forge_python.stub_generator import generate_stub_image
@@ -67,22 +68,43 @@ def test_nsfw_expansion_respects_full_body_scene() -> None:
         body={"breast_size": "Full / large"},
         for_nsfw=True,
     )
+    scene = "full body shot, head to toe visible in frame, fully nude, no clothing, bedroom"
     expanded = expand_prompt(
-        "full body shot, head to toe visible in frame, fully nude, no clothing, bedroom",
+        scene,
         influencer_name="Natasha",
         looks_prompt=looks,
         is_nsfw=True,
     )
     assert expanded.startswith("full body")
     assert "waist up" not in expanded
-    assert "entire subject visible" in expanded
-    neg = resolve_negative_prompt(is_nsfw=True)
-    assert "bra" in neg
+    assert "match the requested pose" in expanded
+    neg = resolve_negative_prompt(is_nsfw=True, user_prompt=scene)
+    assert "shirt" in neg
+    assert "jeans" in neg
+
+
+def test_bikini_prompt_does_not_force_nude() -> None:
+    looks = "25-year-old adult woman, Caucasian"
+    scene = "full body from behind, looking over shoulder, wearing a bikini swimsuit, sunny beach"
+    expanded = expand_prompt(
+        scene,
+        influencer_name="Xz",
+        looks_prompt=looks,
+        is_nsfw=True,
+    )
+    assert "bikini" in expanded
+    assert ", nude," not in expanded.lower()
+    assert "bare skin" not in expanded.lower()
+    assert prompt_requests_revealing_outfit(scene)
+    neg = resolve_negative_prompt(is_nsfw=True, user_prompt=scene)
+    assert "jeans" in neg
+    assert "bikini" not in neg
 
 
 def test_prompt_implies_nsfw() -> None:
     assert prompt_implies_nsfw("Topless")
     assert prompt_implies_nsfw("fully nude beach")
+    assert prompt_implies_nsfw("bikini on the beach")
     assert not prompt_implies_nsfw("golden hour portrait outdoors")
 
 

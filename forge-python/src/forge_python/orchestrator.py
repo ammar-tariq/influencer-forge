@@ -618,7 +618,7 @@ async def create_generation(body: GenerationCreate) -> Generation:
         system_prompt=(personality or {}).get("system_prompt"),
         is_nsfw=is_nsfw,
     )
-    negative = resolve_negative_prompt(is_nsfw=is_nsfw)
+    negative = resolve_negative_prompt(is_nsfw=is_nsfw, user_prompt=body.user_prompt)
     cur = await db.execute(
         """
         INSERT INTO generations(

@@ -5,7 +5,7 @@ import httpx
 import pytest
 from PIL import Image
 
-from forge_python.comfyui_client import ComfyUIClient
+from forge_python.comfyui_client import ComfyUIClient, denoise_for_prompt
 from forge_python.face_seed import embedding_present, extract_face_embedding
 
 
@@ -53,6 +53,8 @@ def test_stage_face_and_img2img_inject(tmp_path: Path, monkeypatch: pytest.Monke
     assert staged.exists()
     with Image.open(staged) as im:
         assert im.size == (576, 1024)
+        # Soft canvas — bottom corners must not be solid face color (cover-fill bug).
+        assert im.getpixel((8, 1000)) != (90, 40, 40)
 
     bundle = {
         "meta": {
@@ -84,6 +86,24 @@ def test_stage_face_and_img2img_inject(tmp_path: Path, monkeypatch: pytest.Monke
     assert prompt["3"]["inputs"]["denoise"] == 0.82
     assert prompt["4"]["inputs"]["ckpt_name"] == "RealVisXL_V5.0_fp16.safetensors"
     assert "consistent face reference" not in prompt["6"]["inputs"]["text"]
+
+
+def test_denoise_ramps_for_scene_change() -> None:
+    meta = {
+        "denoise_default": 0.8,
+        "denoise_scene": 0.88,
+        "denoise_nsfw": 0.9,
+        "denoise_nsfw_scene": 0.94,
+    }
+    assert denoise_for_prompt(is_nsfw=False, prompt_text="studio headshot", meta=meta) == 0.8
+    assert (
+        denoise_for_prompt(
+            is_nsfw=True,
+            prompt_text="full body from behind, bikini, beach",
+            meta=meta,
+        )
+        == 0.94
+    )
 
 
 def test_face_embedding_stable(tmp_path: Path) -> None:

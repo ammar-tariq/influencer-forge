@@ -33,11 +33,11 @@
 
 When a look has a **Face Seed** upload or a **base portrait** (locked on the influencer profile), generation uses `image_img2img.json`:
 
-1. Reference image is resized into `ComfyUI/input/iforge_face_{id}.png`
-2. ComfyUI LoadImage → VAEEncode → KSampler (denoise ~0.72 SFW / ~0.82 NSFW)
+1. Reference is staged as a **head crop on a soft canvas** (not stretched to fill the frame — that used to lock pose/clothes).
+2. ComfyUI LoadImage → VAEEncode → KSampler with higher denoise for scene changes (~0.88–0.94 NSFW full-body / beach / etc.).
 3. History `model_used` shows `sdxl-img2img`
 
-Upload a Face Seed in the Wizard for the strongest lock. Without either reference, gens stay plain txt2img (`sdxl`). InstantID/IP-Adapter remains a later upgrade.
+Bikini/lingerie prompts no longer auto-append `nude` or ban the outfit in negatives. Upload a Face Seed for the strongest lock. Without a reference, gens stay plain txt2img (`sdxl`). InstantID/IP-Adapter remains a later upgrade.
 
 ## Explicit / NSFW generations
 

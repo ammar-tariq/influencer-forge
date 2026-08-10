@@ -35,6 +35,109 @@ def _cover_resize(image: Image.Image, width: int, height: int) -> Image.Image:
     return resized.crop((left, top, left + width, top + height))
 
 
+def _soft_noise_canvas(width: int, height: int, base: tuple[int, int, int]) -> Image.Image:
+    """Neutral backdrop so img2img can invent body/scene outside the face patch."""
+    import random
+
+    rng = random.Random(width * 1009 + height * 9176 + sum(base))
+    canvas = Image.new("RGB", (width, height), base)
+    px = canvas.load()
+    assert px is not None
+    for y in range(0, height, 2):
+        for x in range(0, width, 2):
+            jitter = rng.randint(-18, 18)
+            r = max(0, min(255, base[0] + jitter))
+            g = max(0, min(255, base[1] + jitter))
+            b = max(0, min(255, base[2] + jitter))
+            px[x, y] = (r, g, b)
+            if x + 1 < width:
+                px[x + 1, y] = (r, g, b)
+            if y + 1 < height:
+                px[x, y + 1] = (r, g, b)
+                if x + 1 < width:
+                    px[x + 1, y + 1] = (r, g, b)
+    return canvas
+
+
+def compose_identity_canvas(
+    image: Image.Image,
+    width: int,
+    height: int,
+    *,
+    face_height_ratio: float = 0.36,
+) -> Image.Image:
+    """Place the locked face on a soft canvas instead of cover-filling the frame.
+
+    Cover-resizing a waist-up portrait to 9:16 locks pose/clothes into img2img.
+    A smaller upper-face patch keeps identity while letting the prompt drive scene.
+    """
+    src = image.convert("RGB")
+    # Prefer a head/shoulders crop from the upper portion of portrait refs.
+    sw, sh = src.size
+    if sh > sw * 1.15:
+        head = src.crop((0, 0, sw, int(sh * 0.62)))
+    else:
+        head = src
+
+    avg = head.resize((1, 1), Image.Resampling.BOX).getpixel((0, 0))
+    if not isinstance(avg, tuple):
+        avg = (110, 110, 120)
+    base = (int(avg[0]), int(avg[1]), int(avg[2]))
+    # Pull backdrop toward neutral so clothing colors don't dominate.
+    base = (
+        (base[0] + 140) // 2,
+        (base[1] + 140) // 2,
+        (base[2] + 145) // 2,
+    )
+    canvas = _soft_noise_canvas(width, height, base)
+
+    target_h = max(64, int(height * face_height_ratio))
+    scale = target_h / max(head.height, 1)
+    tw = max(64, int(head.width * scale))
+    th = target_h
+    # Keep face from overflowing width.
+    if tw > int(width * 0.72):
+        tw = int(width * 0.72)
+        th = max(64, int(head.height * (tw / max(head.width, 1))))
+    face = head.resize((tw, th), Image.Resampling.LANCZOS)
+    x = (width - tw) // 2
+    y = max(8, int(height * 0.06))
+    canvas.paste(face, (x, y))
+    return canvas
+
+
+def denoise_for_prompt(*, is_nsfw: bool, prompt_text: str, meta: dict[str, Any]) -> float:
+    """Higher denoise when the user asks for a big scene/pose change vs the lock shot."""
+    lowered = prompt_text.lower()
+    scene_change = any(
+        token in lowered
+        for token in (
+            "full body",
+            "from behind",
+            "over shoulder",
+            "bikini",
+            "swimsuit",
+            "nude",
+            "naked",
+            "topless",
+            "walking",
+            "lying",
+            "sitting",
+            "kneeling",
+            "beach",
+            "bedroom",
+            "outdoors",
+        )
+    )
+    if is_nsfw and scene_change:
+        return float(meta.get("denoise_nsfw_scene", meta.get("denoise_nsfw", 0.92)))
+    if is_nsfw:
+        return float(meta.get("denoise_nsfw", 0.88))
+    if scene_change:
+        return float(meta.get("denoise_scene", 0.88))
+    return float(meta.get("denoise_default", 0.8))
+
+
 class ComfyUIClient:
     def __init__(self, base_url: str | None = None) -> None:
         self.base_url = (base_url or settings.comfyui_url).rstrip("/")
@@ -105,8 +208,13 @@ class ComfyUIClient:
         generation_id: int,
         width: int,
         height: int,
+        cover_fill: bool = False,
     ) -> str:
-        """Copy/resize face ref into ComfyUI input/; return filename for LoadImage."""
+        """Stage face ref into ComfyUI input/; return filename for LoadImage.
+
+        Default pads a head crop onto a soft canvas so img2img does not lock the
+        reference photo's crop, pose, and clothing into the new scene.
+        """
         src = Path(face_reference)
         if not src.is_file():
             raise FileNotFoundError(f"Face reference missing: {src}")
@@ -115,7 +223,12 @@ class ComfyUIClient:
         dest_name = f"iforge_face_{generation_id}.png"
         dest = input_dir / dest_name
         with Image.open(src) as im:
-            _cover_resize(im, width, height).save(dest)
+            staged = (
+                _cover_resize(im, width, height)
+                if cover_fill
+                else compose_identity_canvas(im, width, height)
+            )
+            staged.save(dest)
         return dest_name
 
     def inject_prompt(
@@ -234,8 +347,8 @@ class ComfyUIClient:
                     height=height,
                 )
                 meta = img2img.get("meta") or {}
-                denoise = float(
-                    meta.get("denoise_nsfw" if is_nsfw else "denoise_default", 0.72)
+                denoise = denoise_for_prompt(
+                    is_nsfw=is_nsfw, prompt_text=prompt_text, meta=meta
                 )
                 bundle = img2img
                 logger.info(

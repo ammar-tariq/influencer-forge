@@ -164,7 +164,7 @@ class QueueWorker:
         )
         negative = resolve_negative_prompt(
             is_nsfw=is_nsfw,
-            custom=row.get("negative_prompt"),
+            user_prompt=row["user_prompt"],
         )
         await self.db.execute(
             """
