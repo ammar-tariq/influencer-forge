@@ -811,22 +811,10 @@ async def delete_generation(generation_id: int) -> dict[str, Any]:
 _SEED_FROM_BODY = object()
 
 
-def _assert_nsfw_allowed(
-    *,
-    is_nsfw: bool,
-    age_rating: str | None,
-    looks: Any,
-) -> None:
-    """Family/Teen ratings and looks under 18 cannot enqueue explicit jobs. Adult is enough."""
+def _assert_nsfw_allowed(*, is_nsfw: bool, looks: Any) -> None:
+    """Looks under 18 cannot enqueue explicit jobs. Personality age_rating is not gated."""
     if not is_nsfw:
         return
-    rating = age_rating or "Family"
-    if rating in ("Family", "Teen"):
-        raise HTTPException(
-            400,
-            "Explicit / NSFW requires an Adult (or 18+) age rating on the influencer. "
-            "Family and Teen ratings are blocked.",
-        )
     looks_age = None if looks is None else looks.get("age")
     if looks_age is not None:
         try:
@@ -879,7 +867,7 @@ async def _enqueue_generation(
     except ClothingConflictError as exc:
         raise HTTPException(400, str(exc)) from exc
     is_nsfw = layers.is_nsfw
-    _assert_nsfw_allowed(is_nsfw=is_nsfw, age_rating=age_rating, looks=looks)
+    _assert_nsfw_allowed(is_nsfw=is_nsfw, looks=looks)
     # Identity explore: selected traits only, no face-reference lock in the text stack.
     # Create-post with a lock: hybrid looks (body kept; hair/eyes from reference).
     has_face_ref = resolve_face_lock_path(looks) is not None
@@ -1097,7 +1085,7 @@ async def replace_generation(generation_id: int, body: GenerationReplace) -> Gen
     except ClothingConflictError as exc:
         raise HTTPException(400, str(exc)) from exc
     is_nsfw = layers.is_nsfw
-    _assert_nsfw_allowed(is_nsfw=is_nsfw, age_rating=age_rating, looks=looks)
+    _assert_nsfw_allowed(is_nsfw=is_nsfw, looks=looks)
 
     face_locked = resolve_face_lock_path(looks) is not None
     looks_prompt = build_looks_prompt(

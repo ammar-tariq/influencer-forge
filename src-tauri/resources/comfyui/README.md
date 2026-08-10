@@ -122,7 +122,7 @@ Or any other SDXL LoRA:
 # or: IFORGE_NSFW_LORA_URL='https://…/foo_nsfw.safetensors' ./scripts/install-nsfw-lora.sh
 ```
 
-Character LoRAs may tug against Face Seed identity. Without a LoRA, NSFW still uses prompt + denoise ramps. Adult (or 18+) rating + looks age ≥ 18 required; Family/Teen blocked.
+Character LoRAs may tug against Face Seed identity. Without a LoRA, NSFW still uses prompt + denoise ramps. Looks age must be ≥ 18 (personality age rating is not gated).
 
 ## Apple Silicon / macOS notes
 

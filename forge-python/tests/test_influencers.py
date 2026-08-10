@@ -392,7 +392,7 @@ async def _create_influencer_rated(
 
 
 @pytest.mark.asyncio
-async def test_nsfw_adult_allowed_teen_blocked(client: AsyncClient) -> None:
+async def test_nsfw_allowed_for_any_age_rating(client: AsyncClient) -> None:
     import forge_python.orchestrator as orch
     from forge_python.orchestrator import db
 
@@ -405,31 +405,19 @@ async def test_nsfw_adult_allowed_teen_blocked(client: AsyncClient) -> None:
 
     orch.queue = _QuietQueue()  # type: ignore[assignment]
     try:
-        adult_id = await _create_influencer_rated(client, name="AdultNSFW", age_rating="Adult")
-        ok = await client.post(
-            "/api/generations",
-            json={
-                "influencer_id": adult_id,
-                "user_prompt": "full body nude studio",
-                "is_nsfw": True,
-                "workflow_type": "image",
-            },
-        )
-        assert ok.status_code == 200, ok.text
-        assert ok.json()["is_nsfw"] is True
-
-        teen_id = await _create_influencer_rated(client, name="TeenNSFW", age_rating="Teen")
-        blocked = await client.post(
-            "/api/generations",
-            json={
-                "influencer_id": teen_id,
-                "user_prompt": "full body nude studio",
-                "is_nsfw": True,
-                "workflow_type": "image",
-            },
-        )
-        assert blocked.status_code == 400
-        assert "Adult" in blocked.text
+        for rating, name in (("Adult", "AdultNSFW"), ("Teen", "TeenNSFW"), ("Family", "FamilyNSFW")):
+            iid = await _create_influencer_rated(client, name=name, age_rating=rating)
+            ok = await client.post(
+                "/api/generations",
+                json={
+                    "influencer_id": iid,
+                    "user_prompt": "full body nude studio",
+                    "is_nsfw": True,
+                    "workflow_type": "image",
+                },
+            )
+            assert ok.status_code == 200, f"{rating}: {ok.text}"
+            assert ok.json()["is_nsfw"] is True
     finally:
         orch.queue = None
 

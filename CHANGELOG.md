@@ -42,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- NSFW: **Adult** rating is enough (same as 18+) for the Generate toggle default; Family/Teen still blocked; looks age must be 18+ for explicit jobs.
+- NSFW: personality age rating no longer gates explicit jobs (Family/Teen/Adult/18+ allowed); looks age must still be 18+. Generate still defaults NSFW on for Adult/18+.
 - Prompt override contract: wardrobe XOR dressing; strip clothing from notes when wardrobe is set; block nude+wardrobe; stop rogue `nude` inject; `identity_explore` skips face refs on setup batches; create-post keeps face+body fixed (hybrid looks).
 - System monitor cards (CPU/RAM/queue, ComfyUI, pause/resume) live under Settings; `/monitor` redirects there.
 - Privacy vault is a sidebar switch (PIN on enable) instead of a full `/vault` page; vaulted NSFW hides when off and shows blur teasers in Library/profile when on.

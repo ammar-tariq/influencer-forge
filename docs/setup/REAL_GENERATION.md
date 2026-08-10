@@ -75,14 +75,14 @@ Bikini/lingerie prompts no longer auto-append `nude` or ban the outfit in negati
 
 ## Explicit / NSFW generations
 
-For **Adult** or **18+** influencers (Adult alone is enough — you do not need the separate 18+ rating):
+Personality age rating does **not** gate NSFW (Family/Teen/Adult/18+ can all use it). Looks age must still be **18+**.
 
-1. Open **Generate**, select the influencer (NSFW mode defaults on for Adult and 18+).
+1. Open **Generate**, select the influencer (NSFW mode defaults on for Adult and 18+ ratings).
 2. Enable **NSFW / explicit mode** (or use words like `topless` / `nude` in the prompt).
 3. Prefer waist-up / full-body phrasing — face-only “portrait” framing hides the body.
 4. Leave Wardrobe empty (skipped automatically in NSFW mode).
 
-**Blocked:** Family / Teen age ratings, and looks age under 18.
+**Blocked:** looks age under 18.
 
 The pipeline then uses adult framing + clothing negatives, and injects an NSFW LoRA when present under `ComfyUI/models/loras/` (filename must contain `nsfw`, `nude`, or `explicit`).
 

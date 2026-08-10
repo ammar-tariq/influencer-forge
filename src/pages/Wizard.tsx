@@ -276,7 +276,8 @@ export function Wizard() {
               ))}
             </select>
             <p className="muted mt-1 text-xs">
-              Choose Adult (or 18+) to unlock NSFW later. Family and Teen block explicit mode.
+              Content rating label for organization. NSFW is available for any rating when looks age
+              is 18+.
             </p>
           </div>
           <button className="btn" disabled={!personalityReady} onClick={() => setStep(2)}>

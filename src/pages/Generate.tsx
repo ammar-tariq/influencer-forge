@@ -21,10 +21,6 @@ import {
 import { useQueue } from "../hooks/useQueue";
 import { useVault } from "../hooks/useVault";
 
-function nsfwBlocked(ageRating?: string | null) {
-  return ageRating === "Family" || ageRating === "Teen";
-}
-
 export function Generate() {
   const location = useLocation();
   const created = location.state as {
@@ -78,7 +74,7 @@ export function Generate() {
   const selected = influencers.data?.find((i) => i.id === influencerId);
   const personality = personalities.data?.find((p) => p.id === selected?.personality_id);
   const ageRating = selected?.age_rating ?? personality?.age_rating ?? null;
-  const nsfwAllowed = Boolean(selected) && !nsfwBlocked(ageRating);
+  const nsfwAllowed = Boolean(selected);
   const wardrobeItem = (wardrobe.data ?? []).find((w) => w.id === wardrobeId);
 
   const scene = useMemo(() => {
@@ -135,7 +131,7 @@ export function Generate() {
   }, [dressing, wardrobeId]);
 
   useEffect(() => {
-    if (!selected || nsfwBlocked(ageRating)) {
+    if (!selected) {
       setNsfw(false);
       return;
     }
@@ -510,9 +506,6 @@ export function Generate() {
             />
             NSFW / explicit mode
             {selected && ageRating && <span className="muted">· rating {ageRating}</span>}
-            {selected && !nsfwAllowed && (
-              <span className="muted">· needs Adult or 18+ rating</span>
-            )}
           </label>
           <label className="mb-4 flex items-center gap-2 text-sm">
             <input
