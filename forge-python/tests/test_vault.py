@@ -79,15 +79,16 @@ async def test_vault_pin_and_encrypt(vault_env) -> None:
 @pytest.mark.asyncio
 async def test_vault_generation_wipes_cleartext(vault_env) -> None:
     db, s = vault_env
-    await _seed_generation(db, s, gid=7)
     vault = VaultService(db)
     await vault.setup("4321")
+    vault.lock()
+    await _seed_generation(db, s, gid=7)
     src = s.generations_dir / "7.png"
     thumb = s.thumbnails_dir / "7_thumb.png"
     assert src.exists() and thumb.exists()
+    assert await vault.unlock("4321") is True
 
-    result = await vault.vault_generation(7)
-    assert "teaser_path" in result
+    # Unlock auto-vaults pending NSFW.
     assert not src.exists()
     assert not thumb.exists()
     teaser = s.thumbnails_dir / "7_teaser.png"
@@ -107,17 +108,36 @@ async def test_vault_pending_and_reveal(vault_env) -> None:
     await _seed_generation(db, s, gid=3)
     vault = VaultService(db)
     await vault.setup("9999")
-    assert await vault.count_pending_nsfw() == 1
-    pending = await vault.vault_pending_nsfw()
-    assert pending["count"] == 1
-    assert pending["vaulted"] == [3]
+    # setup() leaves the vault unlocked, so pending NSFW is vaulted immediately on unlock path.
     assert await vault.count_pending_nsfw() == 0
+    assert (s.vault_dir / "3.bin").exists()
 
     revealed = await vault.reveal_generation(3)
     assert revealed.exists()
+    vault.end_view_session()
+    assert vault.unlocked is True
+    assert not revealed.exists()
+    # Can reveal again without re-entering PIN while browsing stays unlocked.
+    revealed2 = await vault.reveal_generation(3)
+    assert revealed2.exists()
     vault.lock()
     with pytest.raises(RuntimeError, match="locked"):
         await vault.reveal_generation(3)
+
+
+@pytest.mark.asyncio
+async def test_unlock_auto_vaults_pending(vault_env) -> None:
+    db, s = vault_env
+    vault = VaultService(db)
+    await vault.setup("1111")
+    vault.lock()
+    # NSFW completed while locked (cleartext still on disk).
+    await _seed_generation(db, s, gid=8)
+    assert await vault.count_pending_nsfw() == 1
+    assert await vault.unlock("1111") is True
+    assert await vault.count_pending_nsfw() == 0
+    assert (s.vault_dir / "8.bin").exists()
+    assert not (s.generations_dir / "8.png").exists()
 
 
 @pytest.mark.asyncio

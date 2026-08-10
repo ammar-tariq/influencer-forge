@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS looks (
     age INTEGER,
     gender TEXT,
     ethnicity TEXT,
+    nationality TEXT,
     hair_color TEXT,
     hair_style TEXT,
     eye_color TEXT,
@@ -92,12 +93,14 @@ CREATE TABLE IF NOT EXISTS generations (
     is_vaulted BOOLEAN DEFAULT 0,
     vault_file_path TEXT,
     teaser_path TEXT,
+    wardrobe_item_id INTEGER,
     status TEXT NOT NULL,
     error_message TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     completed_at DATETIME,
     FOREIGN KEY (influencer_id) REFERENCES influencers(id),
-    FOREIGN KEY (parent_generation_id) REFERENCES generations(id)
+    FOREIGN KEY (parent_generation_id) REFERENCES generations(id),
+    FOREIGN KEY (wardrobe_item_id) REFERENCES wardrobe_items(id)
 );
 
 CREATE TABLE IF NOT EXISTS schedules (
@@ -146,16 +149,25 @@ class Database:
         self._conn.row_factory = aiosqlite.Row
         await self._conn.executescript(SCHEMA)
         await self._migrate_looks_columns()
+        await self._migrate_generations_columns()
         await self._conn.commit()
 
     async def _migrate_looks_columns(self) -> None:
-        """Add gender/body_json on existing DBs created before those columns existed."""
+        """Add columns on existing DBs created before those fields existed."""
         cur = await self.conn.execute("PRAGMA table_info(looks)")
         cols = {row[1] for row in await cur.fetchall()}
         if "gender" not in cols:
             await self.conn.execute("ALTER TABLE looks ADD COLUMN gender TEXT")
         if "body_json" not in cols:
             await self.conn.execute("ALTER TABLE looks ADD COLUMN body_json TEXT")
+        if "nationality" not in cols:
+            await self.conn.execute("ALTER TABLE looks ADD COLUMN nationality TEXT")
+
+    async def _migrate_generations_columns(self) -> None:
+        cur = await self.conn.execute("PRAGMA table_info(generations)")
+        cols = {row[1] for row in await cur.fetchall()}
+        if "wardrobe_item_id" not in cols:
+            await self.conn.execute("ALTER TABLE generations ADD COLUMN wardrobe_item_id INTEGER")
 
     async def close(self) -> None:
         if self._conn is not None:

@@ -54,6 +54,7 @@ export const GENDERS = ["Female", "Male", "Trans girl", OTHER] as const;
 
 export const ETHNICITIES = [
   "Caucasian",
+  "Slavic",
   "East Asian",
   "South Asian",
   "Southeast Asian",
@@ -64,6 +65,39 @@ export const ETHNICITIES = [
   "Native American",
   "Pacific Islander",
   "Mixed / Multiracial",
+  OTHER,
+] as const;
+
+/** Cultural / national look cues for prompts (pairs with ethnicity + body). */
+export const NATIONALITIES = [
+  "Russian",
+  "Ukrainian",
+  "Polish",
+  "Swedish",
+  "German",
+  "French",
+  "Italian",
+  "British",
+  "American",
+  "African American",
+  "Nigerian",
+  "Ghanaian",
+  "Kenyan",
+  "Brazilian",
+  "Mexican",
+  "Colombian",
+  "Chinese",
+  "Japanese",
+  "Korean",
+  "Thai",
+  "Vietnamese",
+  "Filipino",
+  "Indonesian",
+  "Indian",
+  "Pakistani",
+  "Turkish",
+  "Iranian",
+  "Australian",
   OTHER,
 ] as const;
 

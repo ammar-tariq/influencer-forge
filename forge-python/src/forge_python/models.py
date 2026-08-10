@@ -51,6 +51,7 @@ class LooksCreate(BaseModel):
     age: int | None = 25
     gender: str | None = "Female"
     ethnicity: str | None = None
+    nationality: str | None = None
     hair_color: str | None = None
     hair_style: str | None = None
     eye_color: str | None = None
@@ -74,6 +75,7 @@ class LooksUpdate(BaseModel):
     age: int | None = None
     gender: str | None = None
     ethnicity: str | None = None
+    nationality: str | None = None
     hair_color: str | None = None
     hair_style: str | None = None
     eye_color: str | None = None
@@ -174,10 +176,22 @@ class Generation(BaseModel):
     is_vaulted: bool = False
     vault_file_path: str | None = None
     teaser_path: str | None = None
+    wardrobe_item_id: int | None = None
     status: str
     error_message: str | None = None
     created_at: str | None = None
     completed_at: str | None = None
+
+
+class GenerationReplace(BaseModel):
+    """Replace an existing post’s content (new prompt / wardrobe; same generation id)."""
+
+    user_prompt: str
+    workflow_type: Literal["image", "video"] | None = None
+    aspect_ratio: Literal["9:16", "16:9", "1:1"] | None = None
+    wardrobe_item_id: int | None = None
+    is_nsfw: bool | None = None
+    require_real: bool = False
 
 
 class ScheduleCreate(BaseModel):

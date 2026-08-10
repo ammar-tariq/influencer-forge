@@ -55,6 +55,7 @@ async def _create_influencer(client: AsyncClient, name: str = "Natasha") -> int:
             "age": 24,
             "gender": "Female",
             "ethnicity": "Slavic",
+            "nationality": "Russian",
             "hair_color": "Blonde",
             "body": {"height": "5'7\"", "breast_size": "Medium"},
         },
@@ -184,10 +185,97 @@ async def test_patch_personality_and_looks_face_lock_stale(client: AsyncClient) 
 
     patched_l = await client.patch(
         f"/api/looks/{lid}",
-        json={"hair_style": "Curly long", "hair_color": "Red"},
+        json={"hair_style": "Curly long", "hair_color": "Red", "nationality": "Ukrainian"},
     )
     assert patched_l.status_code == 200
     body = patched_l.json()
     assert body["hair_style"] == "Curly long"
+    assert body["nationality"] == "Ukrainian"
     assert body["face_lock_stale"] is True
     assert body.get("base_portrait_path")  # lock kept
+    assert "Ukrainian" in (body.get("base_prompt") or "")
+
+
+@pytest.mark.asyncio
+async def test_delete_influencer_removes_generations(client: AsyncClient) -> None:
+    from forge_python import config
+    from forge_python.orchestrator import db
+
+    iid = await _create_influencer(client, "Doomed")
+    out = config.settings.generations_dir / "doom.png"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 8)
+    await db.execute(
+        """
+        INSERT INTO generations(
+            influencer_id, user_prompt, expanded_prompt, workflow_type,
+            model_used, llm_used, aspect_ratio, status, output_path, is_nsfw, is_vaulted
+        ) VALUES (?, 'p', 'p', 'image', 'stub', 'template', '9:16', 'completed', ?, 0, 0)
+        """,
+        (iid, str(out)),
+    )
+    deleted = await client.delete(f"/api/influencers/{iid}")
+    assert deleted.status_code == 200
+    assert deleted.json()["status"] == "deleted"
+    assert deleted.json()["generations_removed"] >= 1
+    assert not out.exists()
+    assert (await client.get(f"/api/influencers/{iid}")).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_wardrobe_assign_and_list(client: AsyncClient) -> None:
+    iid = await _create_influencer(client, "Dressed")
+    created = await client.post(
+        "/api/wardrobe",
+        json={
+            "name": "Cute red bikini",
+            "category": "Swimwear",
+            "prompt_keywords": "small cute red bikini, matching bottoms",
+            "is_shared": False,
+        },
+    )
+    assert created.status_code == 200
+    wid = created.json()["id"]
+    assigned = await client.post(f"/api/influencers/{iid}/wardrobe/{wid}")
+    assert assigned.status_code == 200
+    listed = await client.get(f"/api/influencers/{iid}/wardrobe")
+    assert listed.status_code == 200
+    assert any(w["id"] == wid for w in listed.json())
+
+
+@pytest.mark.asyncio
+async def test_regenerate_clears_seed(client: AsyncClient) -> None:
+    """Regenerate must not reuse the parent seed (identical ComfyUI output)."""
+    import forge_python.orchestrator as orch
+    from forge_python.orchestrator import db
+
+    iid = await _create_influencer(client, "Reroll")
+    cur = await db.execute(
+        """
+        INSERT INTO generations(
+            influencer_id, user_prompt, expanded_prompt, workflow_type,
+            model_used, llm_used, aspect_ratio, seed, status, is_nsfw, is_vaulted
+        ) VALUES (?, 'identity shot', 'identity shot', 'image',
+                  'stub', 'template', '9:16', 123456789, 'completed', 0, 0)
+        """,
+        (iid,),
+    )
+    parent_id = int(cur.lastrowid)
+
+    class _QuietQueue:
+        async def enqueue(self, generation_id: int, *, require_real: bool = False) -> None:
+            await db.execute(
+                "UPDATE generations SET status = 'queued' WHERE id = ?",
+                (generation_id,),
+            )
+
+    orch.queue = _QuietQueue()  # type: ignore[assignment]
+    try:
+        resp = await client.post(f"/api/generations/{parent_id}/regenerate")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["parent_generation_id"] == parent_id
+        assert body["seed"] is None
+        assert body["user_prompt"] == "identity shot"
+    finally:
+        orch.queue = None

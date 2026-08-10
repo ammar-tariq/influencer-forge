@@ -18,7 +18,8 @@ def test_build_prompts() -> None:
     assert "Elena" in system
     looks = build_looks_prompt(
         age=28,
-        ethnicity="Asian",
+        ethnicity="East Asian",
+        nationality="Chinese",
         hair_color="Black",
         hair_style="Long straight",
         eye_color="Brown",
@@ -27,6 +28,7 @@ def test_build_prompts() -> None:
         body={"height": "Tall", "breast_size": "Medium", "butt_size": "Round / medium"},
     )
     assert "28-year-old adult woman" in looks
+    assert "Chinese nationality" in looks
     assert "breast size: Medium" in looks
     expanded = expand_prompt(
         "full body shot, standing, casual outfit",

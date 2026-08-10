@@ -4,10 +4,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, mediaUrl, vaultRevealUrl } from "../api/client";
 import { InfluencerEditPanels } from "../components/InfluencerEditPanels";
 import { GenerationCard } from "../components/common/GenerationCard";
-import { FaceLockBadge, StatusBadge } from "../components/common/StatusBadge";
+import { StatusBadge } from "../components/common/StatusBadge";
 import { ImageLightbox } from "../components/common/ImageLightbox";
 import { MediaImage } from "../components/common/MediaImage";
+import { BackLink } from "../components/common/BackLink";
+import { PinPrompt } from "../components/common/PinPrompt";
 import { IconCheck } from "../components/common/icons";
+import { useVaultReveal } from "../hooks/useVaultReveal";
 import type { Generation } from "../types";
 
 const DEFAULT_IDENTITY_PROMPT =
@@ -24,10 +27,11 @@ export function InfluencerDetail() {
   const location = useLocation();
   const justCreated = Boolean((location.state as { justCreated?: boolean } | null)?.justCreated);
   const qc = useQueryClient();
+  const reveal = useVaultReveal();
   const [selected, setSelected] = useState<Generation | null>(null);
   const [identityPrompt, setIdentityPrompt] = useState(DEFAULT_IDENTITY_PROMPT);
   const [faceFile, setFaceFile] = useState<File | null>(null);
-  const [faceLockStale, setFaceLockStale] = useState(false);
+  const [assignOutfit, setAssignOutfit] = useState<number | "">("");
 
   const detail = useQuery({
     queryKey: ["influencer", influencerId],
@@ -36,8 +40,6 @@ export function InfluencerDetail() {
     refetchInterval: 3000,
   });
 
-  const vaultStatus = useQuery({ queryKey: ["vault-status"], queryFn: api.vaultStatus });
-
   const generations = useQuery({
     queryKey: ["generations", influencerId],
     queryFn: () => api.listGenerations({ influencer_id: influencerId }),
@@ -45,15 +47,31 @@ export function InfluencerDetail() {
     refetchInterval: 2000,
   });
 
+  const wardrobeAll = useQuery({ queryKey: ["wardrobe"], queryFn: api.listWardrobe });
+  const wardrobeMine = useQuery({
+    queryKey: ["wardrobe", influencerId],
+    queryFn: () => api.listInfluencerWardrobe(influencerId),
+    enabled: Number.isFinite(influencerId) && influencerId > 0,
+  });
+
   const items = generations.data ?? [];
   const inFlight = useMemo(() => items.filter(isInFlight), [items]);
   const sfwCompleted = useMemo(
     () =>
       items.filter(
-        (g) => g.status === "completed" && !g.is_nsfw && !g.is_vaulted && (g.output_path || g.output_thumbnail_path),
+        (g) =>
+          g.status === "completed" &&
+          !g.is_nsfw &&
+          !g.is_vaulted &&
+          (g.output_path || g.output_thumbnail_path),
       ),
     [items],
   );
+  const selectedIndex = selected ? items.findIndex((g) => g.id === selected.id) : -1;
+  const hasPrev = selectedIndex > 0;
+  const hasNext = selectedIndex >= 0 && selectedIndex < items.length - 1;
+  const faceLocked = Boolean(detail.data?.face_lock && detail.data.face_lock !== "none");
+  const showSetup = justCreated || !faceLocked;
 
   useEffect(() => {
     const latest = items[0];
@@ -65,10 +83,11 @@ export function InfluencerDetail() {
     qc.invalidateQueries({ queryKey: ["influencer", influencerId] });
     qc.invalidateQueries({ queryKey: ["generations", influencerId] });
     qc.invalidateQueries({ queryKey: ["influencers"] });
+    qc.invalidateQueries({ queryKey: ["wardrobe", influencerId] });
   };
 
-  const archive = useMutation({
-    mutationFn: () => api.archiveInfluencer(influencerId),
+  const remove = useMutation({
+    mutationFn: () => api.deleteInfluencer(influencerId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["influencers"] });
       navigate("/influencers");
@@ -96,15 +115,9 @@ export function InfluencerDetail() {
     mutationFn: (generationId: number) =>
       api.lockFace(influencerId, { generation_id: generationId }),
     onSuccess: () => {
-      setFaceLockStale(false);
       invalidate();
       setSelected(null);
     },
-  });
-
-  const clearLock = useMutation({
-    mutationFn: () => api.lockFace(influencerId, { clear: true }),
-    onSuccess: invalidate,
   });
 
   const uploadSeed = useMutation({
@@ -114,18 +127,29 @@ export function InfluencerDetail() {
     },
     onSuccess: () => {
       setFaceFile(null);
-      setFaceLockStale(false);
       invalidate();
     },
+  });
+
+  const assignWardrobe = useMutation({
+    mutationFn: () => api.assignWardrobe(influencerId, Number(assignOutfit)),
+    onSuccess: () => {
+      setAssignOutfit("");
+      invalidate();
+      qc.invalidateQueries({ queryKey: ["wardrobe"] });
+    },
+  });
+
+  const unassignWardrobe = useMutation({
+    mutationFn: (itemId: number) => api.unassignWardrobe(influencerId, itemId),
+    onSuccess: invalidate,
   });
 
   if (!Number.isFinite(influencerId) || influencerId <= 0) {
     return (
       <div className="panel">
         <p className="text-[var(--danger)]">Invalid influencer link.</p>
-        <Link className="btn mt-4 inline-block" to="/influencers">
-          Back to Influencers
-        </Link>
+        <BackLink fallbackTo="/influencers" label="Influencers" />
       </div>
     );
   }
@@ -135,36 +159,49 @@ export function InfluencerDetail() {
   }
   if (detail.isError || !detail.data) {
     return (
-      <div className="panel">
+      <div className="panel space-y-3">
         <p className="text-[var(--danger)]">Influencer not found.</p>
-        <p className="muted mt-2 text-sm">
-          If you just created them, restart the app so the API picks up the latest routes, then open{" "}
-          <Link className="underline" to="/influencers">
-            Influencers
-          </Link>
-          .
-        </p>
-        <Link className="btn mt-4 inline-block" to="/influencers">
-          Back to Influencers
-        </Link>
+        <BackLink fallbackTo="/influencers" label="Influencers" />
       </div>
     );
   }
 
   const inf = detail.data;
   const looks = inf.looks;
-  const unlocked = Boolean(vaultStatus.data?.unlocked);
-  const faceLocked = Boolean(inf.face_lock && inf.face_lock !== "none");
-  const showSetup = justCreated || !faceLocked;
+  const mine = wardrobeMine.data ?? [];
+  const mineIds = new Set(mine.map((w) => w.id));
+  const assignable = (wardrobeAll.data ?? []).filter((w) => !mineIds.has(w.id) || w.is_shared);
 
   const cardPath = (g: Generation) =>
     g.is_vaulted
       ? g.teaser_path
       : (g.output_thumbnail_path ?? g.output_path ?? g.teaser_path);
 
+  const openPost = (g: Generation) => {
+    if (g.is_vaulted) {
+      reveal.requestReveal(() => setSelected(g));
+      return;
+    }
+    setSelected(g);
+  };
+
+  const goAdjacent = (g: Generation | undefined) => {
+    if (!g) return;
+    if (g.is_vaulted && !reveal.viewUnlocked) {
+      reveal.requestReveal(() => setSelected(g));
+      return;
+    }
+    setSelected(g);
+  };
+
+  const closeLightbox = async () => {
+    setSelected(null);
+    if (reveal.viewUnlocked) await reveal.endReveal();
+  };
+
   const detailSrc = selected
     ? selected.is_vaulted
-      ? unlocked
+      ? reveal.viewUnlocked
         ? vaultRevealUrl(selected.id)
         : mediaUrl(selected.teaser_path)
       : (mediaUrl(selected.output_path) ??
@@ -181,10 +218,8 @@ export function InfluencerDetail() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-3 text-sm">
-        <Link className="muted hover:text-[var(--ink)]" to="/influencers">
-          ← All influencers
-        </Link>
+      <div className="flex flex-wrap items-center gap-3">
+        <BackLink fallbackTo="/influencers" label="Back" />
       </div>
 
       <header className="grid gap-6 lg:grid-cols-[280px_1fr]">
@@ -196,45 +231,33 @@ export function InfluencerDetail() {
         />
         <div>
           <h1 className="text-3xl tracking-tight">{inf.name}</h1>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <span className="muted text-sm">
-              {inf.niche ?? "Creator"}
-              {inf.age_rating ? ` · ${inf.age_rating}` : ""}
-              {` · ${inf.generation_count ?? items.length} posts`}
-            </span>
-            <FaceLockBadge faceLock={inf.face_lock} />
-          </div>
+          <p className="muted mt-2 text-sm">
+            {inf.niche ?? "Creator"}
+            {inf.age_rating ? ` · ${inf.age_rating}` : ""}
+            {` · ${inf.generation_count ?? items.length} posts`}
+          </p>
           {inf.personality?.bio && <p className="mt-3 text-sm">{inf.personality.bio}</p>}
           <div className="mt-5 flex flex-wrap gap-2">
             <Link className="btn" to="/generate" state={{ createdId: inf.id, name: inf.name }}>
               Create post
             </Link>
-            <Link className="btn secondary" to={`/history?influencer=${inf.id}`}>
-              All posts in Library
+            <Link className="btn secondary" to="/edit-posts">
+              Edit posts
             </Link>
-            {faceLocked && (
-              <button
-                className="btn secondary"
-                disabled={clearLock.isPending}
-                onClick={() => {
-                  if (confirm("Clear face lock so you can pick a new identity shot?")) {
-                    clearLock.mutate();
-                  }
-                }}
-              >
-                Unlock face
-              </button>
-            )}
             <button
               className="btn secondary"
-              disabled={archive.isPending}
+              disabled={remove.isPending}
               onClick={() => {
-                if (confirm(`Archive ${inf.name}? They’ll hide from the list.`)) {
-                  archive.mutate();
+                if (
+                  confirm(
+                    `Delete ${inf.name} and all their posts permanently? This cannot be undone.`,
+                  )
+                ) {
+                  remove.mutate();
                 }
               }}
             >
-              Archive
+              Delete
             </button>
           </div>
         </div>
@@ -243,20 +266,16 @@ export function InfluencerDetail() {
       {showSetup && (
         <section className="panel border-[var(--accent)]">
           <h2 className="text-xl tracking-tight">
-            {justCreated ? "Almost there — lock their face" : "Face lock setup"}
+            {justCreated ? "Pick their face" : "Identity shots"}
           </h2>
           <p className="muted mt-2 text-sm">
-            Review the identity shots below. Tweak the prompt and try again until you like the face,
-            then lock it. Later posts will keep that look (img2img).
+            Generate or upload a reference, then lock the face you want later posts to keep.
           </p>
 
           {inFlight.length > 0 && (
             <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl bg-[var(--bg2)] px-4 py-3 text-sm">
               <StatusBadge status={inFlight[0]?.status ?? "processing"} />
-              <span className="muted">
-                Identity shot #{inFlight[0]?.id}
-                {inFlight.length > 1 ? ` · +${inFlight.length - 1} more` : ""}
-              </span>
+              <span className="muted">Shot #{inFlight[0]?.id}</span>
             </div>
           )}
 
@@ -275,15 +294,12 @@ export function InfluencerDetail() {
               disabled={tryIdentity.isPending || !identityPrompt.trim()}
               onClick={() => tryIdentity.mutate()}
             >
-              {tryIdentity.isPending ? "Queuing…" : inFlight.length ? "Queue another try" : "Generate identity shot"}
+              {tryIdentity.isPending ? "Queuing…" : "Generate identity shot"}
             </button>
           </div>
-          {tryIdentity.isError && (
-            <p className="mt-2 text-sm text-[var(--danger)]">{(tryIdentity.error as Error).message}</p>
-          )}
 
           <div className="field mt-6">
-            <label>Or upload a Face Seed (instant lock)</label>
+            <label>Or upload a Face Seed</label>
             <input
               type="file"
               accept="image/*"
@@ -294,16 +310,13 @@ export function InfluencerDetail() {
               disabled={!faceFile || uploadSeed.isPending}
               onClick={() => uploadSeed.mutate()}
             >
-              {uploadSeed.isPending ? "Uploading…" : "Upload & lock face"}
+              {uploadSeed.isPending ? "Uploading…" : "Upload & use as face"}
             </button>
-            {uploadSeed.isError && (
-              <p className="mt-2 text-sm text-[var(--danger)]">{(uploadSeed.error as Error).message}</p>
-            )}
           </div>
 
           {sfwCompleted.length > 0 && (
             <div className="mt-6 space-y-3">
-              <h3 className="text-lg">Pick a shot to lock</h3>
+              <h3 className="text-lg">Choose a shot</h3>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {sfwCompleted.slice(0, 9).map((g) => (
                   <div key={g.id} className="rounded-xl bg-[var(--bg2)] p-3">
@@ -314,13 +327,11 @@ export function InfluencerDetail() {
                         className="mb-2 h-44 w-full rounded-lg object-cover"
                         fallback="No preview"
                       />
-                      <StatusBadge status={g.status} overlay />
                     </button>
-                    <p className="muted line-clamp-2 text-xs">{g.user_prompt}</p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       <button className="btn" disabled={lockFace.isPending} onClick={() => lockFace.mutate(g.id)}>
                         <span className="inline-flex items-center gap-1">
-                          <IconCheck size={14} /> Lock face
+                          <IconCheck size={14} /> Use this face
                         </span>
                       </button>
                       <button
@@ -334,61 +345,91 @@ export function InfluencerDetail() {
                   </div>
                 ))}
               </div>
-              {lockFace.isError && (
-                <p className="text-sm text-[var(--danger)]">{(lockFace.error as Error).message}</p>
-              )}
             </div>
-          )}
-
-          {!sfwCompleted.length && !inFlight.length && (
-            <p className="muted mt-4 text-sm">No identity shots yet — generate one or upload a Face Seed.</p>
           )}
         </section>
       )}
 
-      {faceLocked && (
-        <div className="panel flex flex-wrap items-center gap-3">
-          <FaceLockBadge faceLock={inf.face_lock} />
-          <p className="muted text-sm">
-            New posts keep this look. Unlock above to pick another shot.
-          </p>
-        </div>
-      )}
-
-      {faceLockStale && (
-        <div className="panel border-[var(--accent-2)]">
-          <p className="text-sm">
-            Looks changed while a face lock is set — re-lock from an identity shot or upload a Face
-            Seed so hair/eyes match the new text.
-          </p>
-        </div>
-      )}
-
       <InfluencerEditPanels
         detail={inf}
-        onSaved={({ faceLockStale: stale } = {}) => {
+        onSaved={() => {
           invalidate();
-          if (stale) setFaceLockStale(true);
         }}
       />
 
-      <section className="space-y-4">
+      <section className="panel space-y-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="text-2xl tracking-tight">Generated content</h2>
-            <p className="muted text-sm">Everything this influencer has produced.</p>
+            <h2 className="text-xl tracking-tight">Wardrobe</h2>
+            <p className="muted text-sm">
+              Outfits assigned here show up when creating posts for {inf.name}.
+            </p>
           </div>
-          <Link className="btn secondary" to={`/history?influencer=${inf.id}`}>
-            Open in Library
+          <Link className="btn secondary" to="/wardrobe">
+            Manage wardrobe
           </Link>
+        </div>
+        {!mine.length ? (
+          <p className="muted text-sm">No outfits assigned yet.</p>
+        ) : (
+          <ul className="space-y-2">
+            {mine.map((w) => (
+              <li
+                key={w.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[var(--bg2)] px-3 py-2 text-sm"
+              >
+                <div>
+                  <span className="font-medium">{w.name}</span>
+                  <span className="muted"> · {w.category}</span>
+                  <p className="muted text-xs">{w.prompt_keywords}</p>
+                </div>
+                {!w.is_shared && (
+                  <button
+                    type="button"
+                    className="btn secondary"
+                    onClick={() => unassignWardrobe.mutate(w.id)}
+                  >
+                    Remove
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <select
+            value={assignOutfit}
+            onChange={(e) => setAssignOutfit(e.target.value ? Number(e.target.value) : "")}
+          >
+            <option value="">Add outfit…</option>
+            {assignable.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.name}
+              </option>
+            ))}
+          </select>
+          <button
+            className="btn secondary"
+            disabled={!assignOutfit || assignWardrobe.isPending}
+            onClick={() => assignWardrobe.mutate()}
+          >
+            Assign
+          </button>
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-2xl tracking-tight">Posts</h2>
+          <p className="muted text-sm">Everything this influencer has produced.</p>
         </div>
 
         {!items.length ? (
           <div className="panel">
             <p className="muted text-sm">No posts yet.</p>
-            <button className="btn mt-3" onClick={() => tryIdentity.mutate()}>
-              Generate identity shot
-            </button>
+            <Link className="btn mt-3 inline-block" to="/generate" state={{ createdId: inf.id }}>
+              Create post
+            </Link>
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -397,30 +438,49 @@ export function InfluencerDetail() {
                 key={g.id}
                 generation={g}
                 imagePath={cardPath(g)}
-                onClick={() => setSelected(g)}
+                onClick={() => openPost(g)}
               />
             ))}
           </div>
         )}
       </section>
 
+      <PinPrompt
+        open={reveal.pinOpen}
+        title="Enter PIN to view"
+        subtitle="Vaulted posts always require your PIN."
+        confirmLabel="View post"
+        busy={reveal.pinBusy}
+        error={reveal.pinError}
+        onCancel={reveal.cancelPin}
+        onSubmit={reveal.submitPin}
+      />
+
       <ImageLightbox
-        open={Boolean(selected)}
-        onClose={() => setSelected(null)}
-        title={selected ? `Generation #${selected.id}` : ""}
-        subtitle={selected ? `Seed ${selected.seed ?? "—"} · ${selected.model_used}` : undefined}
+        open={Boolean(selected) && (!selected?.is_vaulted || reveal.viewUnlocked)}
+        onClose={() => {
+          void closeLightbox();
+        }}
+        title={selected ? `Post #${selected.id}` : ""}
+        subtitle={
+          selected
+            ? `Seed ${selected.seed ?? "—"} · ${selected.model_used}${
+                selectedIndex >= 0 ? ` · ${selectedIndex + 1}/${items.length}` : ""
+              }`
+            : undefined
+        }
         imageSrc={
           selected && detailSrc
-            ? selected.is_vaulted && unlocked
-              ? `${detailSrc}?t=${Date.now()}`
+            ? selected.is_vaulted
+              ? `${detailSrc}?t=${selected.id}-v`
               : detailSrc
             : null
         }
-        placeholder={
-          selected?.is_vaulted && !unlocked
-            ? "Unlock the vault to view full image"
-            : (selected?.status ?? "No image")
-        }
+        placeholder={selected?.status ?? "No image"}
+        hasPrev={hasPrev}
+        hasNext={hasNext}
+        onPrev={() => hasPrev && goAdjacent(items[selectedIndex - 1])}
+        onNext={() => hasNext && goAdjacent(items[selectedIndex + 1])}
       >
         {selected && (
           <>
@@ -437,16 +497,14 @@ export function InfluencerDetail() {
                   disabled={lockFace.isPending}
                   onClick={() => lockFace.mutate(selected.id)}
                 >
-                  <span className="inline-flex items-center gap-1">
-                    <IconCheck size={14} /> Lock this face
-                  </span>
+                  Use this face
                 </button>
               )}
               <button className="btn secondary" onClick={() => regenerate.mutate(selected.id)}>
                 Regenerate
               </button>
-              <Link className="btn secondary" to={`/history?influencer=${inf.id}`}>
-                Open in Library
+              <Link className="btn secondary" to="/edit-posts">
+                Replace post
               </Link>
             </div>
           </>

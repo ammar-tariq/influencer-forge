@@ -1,127 +1,94 @@
-import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "../api/client";
 import { MediaImage } from "../components/common/MediaImage";
 import { ReadinessChecklist } from "../components/common/ReadinessChecklist";
-import { FaceLockBadge } from "../components/common/StatusBadge";
-import { IconCheck, IconClock } from "../components/common/icons";
-import { useVault } from "../hooks/useVault";
+import { IconCheck } from "../components/common/icons";
 
 export function Dashboard() {
-  const influencers = useQuery({
-    queryKey: ["influencers"],
-    queryFn: api.listInfluencers,
-    refetchInterval: 3000,
-  });
-  const generations = useQuery({
-    queryKey: ["generations-dash"],
-    queryFn: () => api.listGenerations(),
-    refetchInterval: 4000,
-  });
+  const influencers = useQuery({ queryKey: ["influencers"], queryFn: api.listInfluencers });
   const suggestions = useQuery({
     queryKey: ["suggestions"],
     queryFn: () => api.suggestions("Lifestyle"),
   });
-  const reminders = useQuery({
-    queryKey: ["reminders"],
-    queryFn: api.reminders,
-    refetchInterval: 10000,
-  });
-  const { status: vault } = useVault();
+  const reminders = useQuery({ queryKey: ["reminders"], queryFn: api.reminders });
+  const vaultStatus = useQuery({ queryKey: ["vault-status"], queryFn: api.vaultStatus });
   const readiness = useQuery({ queryKey: ["readiness"], queryFn: api.readiness, refetchInterval: 8000 });
 
-  const hasInfluencers = (influencers.data?.length ?? 0) > 0;
-  const hasGens = (generations.data?.length ?? 0) > 0;
-  const pending = generations.data?.filter((g) =>
-    ["pending", "queued", "processing"].includes(g.status),
-  ).length;
-  const nsfwPendingVault = vault.data?.pending_nsfw ?? 0;
+  const hasInfluencers = Boolean(influencers.data?.length);
+  const realReady = Boolean(readiness.data?.real_ready);
+  const nsfwPendingVault = vaultStatus.data?.pending_nsfw ?? 0;
 
-  const nextSteps = [
+  const steps = [
     {
-      done: hasInfluencers,
       title: "1. Create an influencer",
-      detail: "Personality → Face → Body (gender, height, curves, etc.)",
+      detail: "Personality, face, body",
       to: "/wizard",
-      cta: "Open Create",
-    },
-    {
+      cta: "Create",
       done: hasInfluencers,
-      title: "2. Browse your influencers",
-      detail: "See everyone, open a profile, and jump into their posts",
+    },
+    {
+      title: "2. Browse profiles",
+      detail: "Edit looks, wardrobe, posts",
       to: "/influencers",
-      cta: "Influencers",
+      cta: "Open",
+      done: hasInfluencers,
     },
     {
-      done: hasGens,
-      title: "3. Generate a full-body post",
-      detail: "Pick framing, pose, and outfit — prompts are optional extras",
+      title: "3. Create a post",
+      detail: "Scene + optional wardrobe outfit",
       to: "/generate",
-      cta: "Open Generate",
+      cta: "Generate",
+      done: false,
     },
     {
-      done: Boolean(vault.data?.configured),
-      title: "4. Set a Privacy Vault PIN",
-      detail: "Encrypts NSFW outputs automatically when unlocked",
-      to: "/vault",
-      cta: "Open Vault",
-    },
-    {
-      done: readiness.data?.mode === "real",
-      title: "5. Real AI mode green",
-      detail: readiness.data?.summary ?? "Finish the readiness checklist for ComfyUI",
-      to: "/settings",
-      cta: "Settings",
+      title: "4. Wardrobe",
+      detail: "Reusable outfits (bikini, hoodie…)",
+      to: "/wardrobe",
+      cta: "Outfits",
+      done: false,
     },
   ];
 
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-3xl tracking-tight">Studio</h1>
+        <h1 className="text-3xl tracking-tight">Studio home</h1>
         <p className="muted mt-1">
-          Follow the checklist — each step links you to the right screen.
-          {pending ? ` · ${pending} generation(s) in progress` : ""}
+          Local influencer studio
+          {realReady ? " · real generation ready" : " · stub / setup mode"}
         </p>
       </header>
 
       <div className="panel">
-        <h2 className="text-lg">What to do next</h2>
+        <h2 className="text-lg">Get started</h2>
         <ul className="mt-4 space-y-3">
-          {nextSteps.map((s) => (
-            <li
-              key={s.title}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[var(--bg2)] px-4 py-3"
-            >
-              <div className="flex min-w-0 items-start gap-3">
-                <span className={`status-badge ${s.done ? "tone-ok" : "tone-wait"}`} title={s.done ? "Done" : "Todo"}>
-                  {s.done ? <IconCheck size={13} /> : <IconClock size={13} />}
-                </span>
+          {steps.map((s) => (
+            <li key={s.title} className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-start gap-3 min-w-0">
+                {s.done ? (
+                  <IconCheck size={18} className="mt-0.5 text-[var(--accent)]" />
+                ) : (
+                  <span className="mt-0.5 inline-block h-[18px] w-[18px] rounded-full border border-[var(--line)]" />
+                )}
                 <div className="min-w-0">
                   <div className="font-semibold">{s.title.replace(/^\d+\.\s*/, "")}</div>
                   <p className="muted text-sm">{s.detail}</p>
                 </div>
               </div>
-              {!s.done && (
-                <Link className="btn secondary" to={s.to}>
-                  {s.cta}
-                </Link>
-              )}
-              {s.done && (
-                <Link className="btn secondary" to={s.to}>
-                  Open
-                </Link>
-              )}
+              <Link className="btn secondary" to={s.to}>
+                {s.done ? "Open" : s.cta}
+              </Link>
             </li>
           ))}
         </ul>
         {nsfwPendingVault > 0 && (
           <p className="mt-4 text-sm text-[var(--accent-2)]">
-            {nsfwPendingVault} NSFW file(s) still in cleartext —{" "}
+            {nsfwPendingVault} NSFW file(s) waiting to encrypt —{" "}
             <Link className="underline" to="/vault">
-              unlock vault & secure them
-            </Link>
-            .
+              unlock vault
+            </Link>{" "}
+            and they auto-vault.
           </p>
         )}
       </div>
@@ -132,8 +99,7 @@ export function Dashboard() {
         <div className="panel">
           <h2 className="text-xl">Create your first influencer</h2>
           <p className="muted mt-2">
-            You’ll set personality, face, and body, then open their profile to create posts and
-            browse everything they’ve made.
+            You’ll set personality, face, and body, then open their profile to create posts.
           </p>
           <Link className="btn mt-4 inline-block" to="/wizard">
             Start Create wizard
@@ -142,33 +108,24 @@ export function Dashboard() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {influencers.data!.map((inf) => (
-            <div key={inf.id} className="panel overflow-hidden">
+            <Link
+              key={inf.id}
+              to={`/influencers/${inf.id}`}
+              className="panel block overflow-hidden text-left transition hover:border-[var(--accent)]"
+            >
               <MediaImage
                 path={inf.avatar_path}
                 alt={inf.name}
                 className="mb-3 h-56 w-full rounded-xl object-cover"
                 fallback="Portrait generating…"
               />
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-xl">{inf.name}</h3>
-                <FaceLockBadge faceLock={inf.face_lock} />
-              </div>
+              <h3 className="text-xl">{inf.name}</h3>
               <p className="muted mt-1 text-sm">
                 #{inf.id}
                 {inf.age_rating ? ` · ${inf.age_rating}` : ""}
+                {` · ${inf.generation_count ?? 0} posts`}
               </p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Link className="btn inline-block" to={`/influencers/${inf.id}`}>
-                  Open profile
-                </Link>
-                <Link className="btn secondary inline-block" to="/generate" state={{ createdId: inf.id, name: inf.name }}>
-                  Create post
-                </Link>
-                <Link className="btn secondary inline-block" to={`/history?influencer=${inf.id}`}>
-                  Their posts
-                </Link>
-              </div>
-            </div>
+            </Link>
           ))}
         </div>
       )}

@@ -2,13 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, mediaUrl, vaultRevealUrl } from "../api/client";
+import { BackLink } from "../components/common/BackLink";
 import { GenerationCard } from "../components/common/GenerationCard";
 import { ImageLightbox } from "../components/common/ImageLightbox";
+import { PinPrompt } from "../components/common/PinPrompt";
 import { StatusBadge } from "../components/common/StatusBadge";
+import { useVaultReveal } from "../hooks/useVaultReveal";
 import type { Generation } from "../types";
 
 export function History() {
   const qc = useQueryClient();
+  const reveal = useVaultReveal();
   const [params, setParams] = useSearchParams();
   const influencers = useQuery({ queryKey: ["influencers"], queryFn: api.listInfluencers });
   const vaultStatus = useQuery({ queryKey: ["vault-status"], queryFn: api.vaultStatus });
@@ -41,32 +45,43 @@ export function History() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["generations"] }),
   });
 
-  const vault = useMutation({
-    mutationFn: (id: number) => api.vaultGeneration(id),
-    onSuccess: (_data, id) => {
-      qc.invalidateQueries({ queryKey: ["generations"] });
-      qc.invalidateQueries({ queryKey: ["vault-status"] });
-      qc.invalidateQueries({ queryKey: ["vault-generations"] });
-      setSelected((prev) =>
-        prev && prev.id === id
-          ? { ...prev, is_vaulted: true, output_path: null, output_thumbnail_path: null }
-          : prev,
-      );
-    },
-  });
-
   const items = useMemo(() => generations.data ?? [], [generations.data]);
-  const unlocked = Boolean(vaultStatus.data?.unlocked);
+  const browseUnlocked = Boolean(vaultStatus.data?.unlocked);
   const pendingNsfw = vaultStatus.data?.pending_nsfw ?? 0;
+  const selectedIndex = selected ? items.findIndex((g) => g.id === selected.id) : -1;
+  const hasPrev = selectedIndex > 0;
+  const hasNext = selectedIndex >= 0 && selectedIndex < items.length - 1;
 
   const cardPath = (g: Generation) =>
     g.is_vaulted
       ? g.teaser_path
       : (g.output_thumbnail_path ?? g.output_path ?? g.teaser_path);
 
+  const openPost = (g: Generation) => {
+    if (g.is_vaulted) {
+      reveal.requestReveal(() => setSelected(g));
+      return;
+    }
+    setSelected(g);
+  };
+
+  const goAdjacent = (g: Generation | undefined) => {
+    if (!g) return;
+    if (g.is_vaulted && !reveal.viewUnlocked) {
+      reveal.requestReveal(() => setSelected(g));
+      return;
+    }
+    setSelected(g);
+  };
+
+  const closeLightbox = async () => {
+    setSelected(null);
+    if (reveal.viewUnlocked) await reveal.endReveal();
+  };
+
   const detailSrc = selected
     ? selected.is_vaulted
-      ? unlocked
+      ? reveal.viewUnlocked
         ? vaultRevealUrl(selected.id)
         : mediaUrl(selected.teaser_path)
       : (mediaUrl(selected.output_path) ??
@@ -76,17 +91,19 @@ export function History() {
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-wrap items-center gap-3">
+        <BackLink
+          fallbackTo={influencerId !== "" ? `/influencers/${influencerId}` : "/influencers"}
+          label="Back"
+        />
+      </div>
       <header>
         <h1 className="text-3xl tracking-tight">Library</h1>
         <p className="muted mt-1">
-          All generated content
+          Generated posts
           {influencerId !== ""
             ? ` for ${influencers.data?.find((i) => i.id === influencerId)?.name ?? `#${influencerId}`}`
             : ""}
-          . Filter by influencer or open one from{" "}
-          <Link className="underline" to="/influencers">
-            Influencers
-          </Link>
           .
         </p>
       </header>
@@ -94,11 +111,11 @@ export function History() {
       {pendingNsfw > 0 && (
         <div className="panel border-[var(--accent-2)]">
           <p className="text-sm">
-            {pendingNsfw} NSFW generation{pendingNsfw === 1 ? "" : "s"} still in cleartext.{" "}
+            {pendingNsfw} NSFW generation{pendingNsfw === 1 ? "" : "s"} waiting to encrypt.{" "}
             <Link className="underline" to="/vault">
               Unlock the vault
             </Link>{" "}
-            and use “Vault pending NSFW”.
+            — they move in automatically.
           </p>
         </div>
       )}
@@ -142,30 +159,47 @@ export function History() {
             key={g.id}
             generation={g}
             imagePath={cardPath(g)}
-            onClick={() => setSelected(g)}
+            onClick={() => openPost(g)}
           />
         ))}
       </div>
 
+      <PinPrompt
+        open={reveal.pinOpen}
+        title="Enter PIN to view"
+        subtitle="Vaulted posts always require your PIN."
+        confirmLabel="View post"
+        busy={reveal.pinBusy}
+        error={reveal.pinError}
+        onCancel={reveal.cancelPin}
+        onSubmit={reveal.submitPin}
+      />
+
       <ImageLightbox
-        open={Boolean(selected)}
-        onClose={() => setSelected(null)}
+        open={Boolean(selected) && (!selected?.is_vaulted || reveal.viewUnlocked)}
+        onClose={() => {
+          void closeLightbox();
+        }}
         title={selected ? `Generation #${selected.id}` : ""}
         subtitle={
-          selected ? `Seed ${selected.seed ?? "—"} · ${selected.model_used}` : undefined
+          selected
+            ? `Seed ${selected.seed ?? "—"} · ${selected.model_used}${
+                selectedIndex >= 0 ? ` · ${selectedIndex + 1}/${items.length}` : ""
+              }`
+            : undefined
         }
         imageSrc={
           selected && detailSrc
-            ? selected.is_vaulted && unlocked
-              ? `${detailSrc}?t=${Date.now()}`
+            ? selected.is_vaulted
+              ? `${detailSrc}?t=${selected.id}-${reveal.viewUnlocked ? "1" : "0"}`
               : detailSrc
             : null
         }
-        placeholder={
-          selected?.is_vaulted && !unlocked
-            ? "Unlock the vault to view full image"
-            : `${selected?.status ?? ""}${selected?.error_message ? ` — ${selected.error_message}` : ""}`
-        }
+        placeholder={`${selected?.status ?? ""}${selected?.error_message ? ` — ${selected.error_message}` : ""}`}
+        hasPrev={hasPrev}
+        hasNext={hasNext}
+        onPrev={() => hasPrev && goAdjacent(items[selectedIndex - 1])}
+        onNext={() => hasNext && goAdjacent(items[selectedIndex + 1])}
       >
         {selected && (
           <>
@@ -174,32 +208,21 @@ export function History() {
               isVaulted={selected.is_vaulted}
               isNsfw={selected.is_nsfw}
             />
-            {selected.is_vaulted && !unlocked && (
-              <p className="muted text-sm">
-                Showing blurred teaser only.{" "}
-                <Link className="underline" to="/vault">
-                  Open Vault
-                </Link>
-              </p>
-            )}
             <p className="line-clamp-4 text-sm">{selected.expanded_prompt}</p>
             <div className="flex flex-wrap gap-3">
               <button className="btn" onClick={() => regenerate.mutate(selected.id)}>
                 Regenerate
               </button>
-              {!selected.is_vaulted && selected.output_path && (
-                <button
-                  className="btn secondary"
-                  disabled={!vaultStatus.data?.unlocked}
-                  onClick={() => vault.mutate(selected.id)}
-                >
-                  Move to vault
-                </button>
-              )}
               {selected.is_vaulted && (
                 <Link className="btn secondary" to="/vault">
                   Open in Vault
                 </Link>
+              )}
+              {selected.is_nsfw && !selected.is_vaulted && (
+                <p className="muted text-xs">
+                  NSFW auto-vaults when the vault is unlocked
+                  {browseUnlocked ? "…" : " — unlock on the Vault page to encrypt pending items."}
+                </p>
               )}
               {detailSrc && !selected.is_vaulted && (
                 <a className="btn secondary" href={detailSrc} target="_blank" rel="noreferrer">
@@ -207,9 +230,6 @@ export function History() {
                 </a>
               )}
             </div>
-            {!selected.is_vaulted && selected.output_path && !vaultStatus.data?.unlocked && (
-              <p className="muted text-xs">Unlock the vault (Vault page) before moving items.</p>
-            )}
           </>
         )}
       </ImageLightbox>

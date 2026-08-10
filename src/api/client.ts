@@ -86,6 +86,7 @@ export const api = {
         | "age"
         | "gender"
         | "ethnicity"
+        | "nationality"
         | "hair_color"
         | "hair_style"
         | "eye_color"
@@ -132,6 +133,11 @@ export const api = {
     request<Influencer>("/api/influencers", { method: "POST", body: JSON.stringify(body) }),
   archiveInfluencer: (id: number) =>
     request<{ status: string }>(`/api/influencers/${id}/archive`, { method: "POST" }),
+  deleteInfluencer: (id: number) =>
+    request<{ status: string; generations_removed: number; files_removed: number }>(
+      `/api/influencers/${id}`,
+      { method: "DELETE" },
+    ),
   lockFace: (id: number, body: { generation_id?: number; clear?: boolean }) =>
     request<InfluencerDetail>(`/api/influencers/${id}/face-lock`, {
       method: "POST",
@@ -139,10 +145,14 @@ export const api = {
     }),
 
   listWardrobe: () => request<WardrobeItem[]>("/api/wardrobe"),
-  createWardrobe: (body: Omit<WardrobeItem, "id">) =>
+  listInfluencerWardrobe: (influencerId: number) =>
+    request<WardrobeItem[]>(`/api/influencers/${influencerId}/wardrobe`),
+  createWardrobe: (body: Omit<WardrobeItem, "id"> & { description?: string | null }) =>
     request<WardrobeItem>("/api/wardrobe", { method: "POST", body: JSON.stringify(body) }),
   assignWardrobe: (influencerId: number, itemId: number) =>
     request(`/api/influencers/${influencerId}/wardrobe/${itemId}`, { method: "POST" }),
+  unassignWardrobe: (influencerId: number, itemId: number) =>
+    request(`/api/influencers/${influencerId}/wardrobe/${itemId}`, { method: "DELETE" }),
 
   listGenerations: (params?: { influencer_id?: number; is_nsfw?: boolean }) => {
     const q = new URLSearchParams();
@@ -168,6 +178,21 @@ export const api = {
     }),
   regenerate: (id: number) =>
     request<Generation>(`/api/generations/${id}/regenerate`, { method: "POST" }),
+  replaceGeneration: (
+    id: number,
+    body: {
+      user_prompt: string;
+      workflow_type?: string;
+      aspect_ratio?: string;
+      wardrobe_item_id?: number | null;
+      is_nsfw?: boolean;
+      require_real?: boolean;
+    },
+  ) =>
+    request<Generation>(`/api/generations/${id}/replace`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   postProcess: (body: {
     generation_id: number;
     rotate_degrees?: number;
@@ -203,6 +228,7 @@ export const api = {
   vaultUnlock: (pin: string) =>
     request("/api/vault/unlock", { method: "POST", body: JSON.stringify({ pin }) }),
   vaultLock: () => request("/api/vault/lock", { method: "POST" }),
+  vaultEndView: () => request("/api/vault/end-view", { method: "POST" }),
   vaultGeneration: (id: number) =>
     request<{ vault_file_path: string; teaser_path: string }>(`/api/vault/generations/${id}`, {
       method: "POST",

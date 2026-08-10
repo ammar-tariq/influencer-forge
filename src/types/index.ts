@@ -17,6 +17,7 @@ export interface Looks {
   age?: number | null;
   gender?: string | null;
   ethnicity?: string | null;
+  nationality?: string | null;
   hair_color?: string | null;
   hair_style?: string | null;
   eye_color?: string | null;
@@ -69,6 +70,7 @@ export interface Generation {
   is_vaulted: boolean;
   teaser_path?: string | null;
   vault_file_path?: string | null;
+  wardrobe_item_id?: number | null;
   error_message?: string | null;
   created_at?: string | null;
   completed_at?: string | null;

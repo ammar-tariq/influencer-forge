@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
+import { BackLink } from "../components/common/BackLink";
 import { SelectWithOther } from "../components/common/SelectWithOther";
 import {
   AGE_RATINGS,
@@ -20,6 +21,7 @@ import {
   HUMORS,
   LOOK_STYLES,
   MUSCLE_TONES,
+  NATIONALITIES,
   NICHES,
   OTHER,
   SKIN_TONES,
@@ -50,6 +52,8 @@ export function Wizard() {
   const [genderOther, setGenderOther] = useState("");
   const [ethnicity, setEthnicity] = useState<string>("Caucasian");
   const [ethnicityOther, setEthnicityOther] = useState("");
+  const [nationality, setNationality] = useState<string>("American");
+  const [nationalityOther, setNationalityOther] = useState("");
   const [hairColor, setHairColor] = useState<string>("Brown");
   const [hairColorOther, setHairColorOther] = useState("");
   const [hairStyle, setHairStyle] = useState<string>("Long straight");
@@ -97,6 +101,7 @@ export function Wizard() {
   const resolvedHumor = resolveSelectValue(humor, humorOther);
   const resolvedGender = resolveSelectValue(gender, genderOther);
   const resolvedEthnicity = resolveSelectValue(ethnicity, ethnicityOther);
+  const resolvedNationality = resolveSelectValue(nationality, nationalityOther);
   const resolvedHairColor = resolveSelectValue(hairColor, hairColorOther);
   const resolvedHairStyle = resolveSelectValue(hairStyle, hairStyleOther);
   const resolvedEyeColor = resolveSelectValue(eyeColor, eyeColorOther);
@@ -135,7 +140,8 @@ export function Wizard() {
     Boolean(resolvedEyeColor) &&
     Boolean(resolvedStyle) &&
     !(gender === OTHER && !genderOther.trim()) &&
-    !(ethnicity === OTHER && !ethnicityOther.trim());
+    !(ethnicity === OTHER && !ethnicityOther.trim()) &&
+    !(nationality === OTHER && !nationalityOther.trim());
 
   const bodyReady = Boolean(body.skin_tone) && Boolean(body.height) && Boolean(body.body_type);
 
@@ -153,6 +159,7 @@ export function Wizard() {
         age,
         gender: resolvedGender,
         ethnicity: resolvedEthnicity,
+        nationality: resolvedNationality,
         hair_color: resolvedHairColor,
         hair_style: resolvedHairStyle,
         eye_color: resolvedEyeColor,
@@ -193,6 +200,7 @@ export function Wizard() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
+      <BackLink fallbackTo="/influencers" label="Back" />
       <header>
         <h1 className="text-3xl tracking-tight">Create influencer</h1>
         <p className="muted mt-1">
@@ -302,6 +310,15 @@ export function Wizard() {
             otherValue={ethnicityOther}
             onChange={setEthnicity}
             onOtherChange={setEthnicityOther}
+          />
+          <SelectWithOther
+            label="Nationality"
+            options={NATIONALITIES}
+            value={nationality}
+            otherValue={nationalityOther}
+            onChange={setNationality}
+            onOtherChange={setNationalityOther}
+            otherPlaceholder="e.g. Colombian-Korean"
           />
           <SelectWithOther
             label="Hair color"

@@ -33,6 +33,7 @@ from forge_python.models import (
     FaceLockRequest,
     Generation,
     GenerationCreate,
+    GenerationReplace,
     HealthResponse,
     Influencer,
     InfluencerCreate,
@@ -285,6 +286,7 @@ async def create_looks(body: LooksCreate) -> Looks:
     base_prompt = body.base_prompt or build_looks_prompt(
         age=body.age,
         ethnicity=body.ethnicity,
+        nationality=body.nationality,
         hair_color=body.hair_color,
         hair_style=body.hair_style,
         eye_color=body.eye_color,
@@ -294,15 +296,16 @@ async def create_looks(body: LooksCreate) -> Looks:
     )
     cur = await db.execute(
         """
-        INSERT INTO looks(name, age, gender, ethnicity, hair_color, hair_style, eye_color, style,
-                          body_json, base_prompt, reference_image_path)
-        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO looks(name, age, gender, ethnicity, nationality, hair_color, hair_style,
+                          eye_color, style, body_json, base_prompt, reference_image_path)
+        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             body.name,
             body.age,
             body.gender,
             body.ethnicity,
+            body.nationality,
             body.hair_color,
             body.hair_style,
             body.eye_color,
@@ -325,7 +328,7 @@ async def update_looks(looks_id: int, body: LooksUpdate) -> LooksUpdateResponse:
     if not row:
         raise HTTPException(404, "Looks not found")
     patch = body.model_dump(exclude_unset=True)
-    identity_keys = {"ethnicity", "hair_color", "hair_style", "eye_color"}
+    identity_keys = {"ethnicity", "nationality", "hair_color", "hair_style", "eye_color"}
     had_face_lock = bool(row.get("base_portrait_path") or row.get("reference_image_path"))
     face_lock_stale = had_face_lock and bool(identity_keys & set(patch.keys()))
 
@@ -333,6 +336,7 @@ async def update_looks(looks_id: int, body: LooksUpdate) -> LooksUpdateResponse:
     age = patch.get("age", row["age"])
     gender = patch.get("gender", row.get("gender") or "Female")
     ethnicity = patch.get("ethnicity", row["ethnicity"])
+    nationality = patch.get("nationality", row.get("nationality"))
     hair_color = patch.get("hair_color", row["hair_color"])
     hair_style = patch.get("hair_style", row["hair_style"])
     eye_color = patch.get("eye_color", row["eye_color"])
@@ -341,6 +345,7 @@ async def update_looks(looks_id: int, body: LooksUpdate) -> LooksUpdateResponse:
     base_prompt = build_looks_prompt(
         age=age,
         ethnicity=ethnicity,
+        nationality=nationality,
         hair_color=hair_color,
         hair_style=hair_style,
         eye_color=eye_color,
@@ -351,8 +356,8 @@ async def update_looks(looks_id: int, body: LooksUpdate) -> LooksUpdateResponse:
     await db.execute(
         """
         UPDATE looks
-        SET name = ?, age = ?, gender = ?, ethnicity = ?, hair_color = ?, hair_style = ?,
-            eye_color = ?, style = ?, body_json = ?, base_prompt = ?
+        SET name = ?, age = ?, gender = ?, ethnicity = ?, nationality = ?, hair_color = ?,
+            hair_style = ?, eye_color = ?, style = ?, body_json = ?, base_prompt = ?
         WHERE id = ?
         """,
         (
@@ -360,6 +365,7 @@ async def update_looks(looks_id: int, body: LooksUpdate) -> LooksUpdateResponse:
             age,
             gender,
             ethnicity,
+            nationality,
             hair_color,
             hair_style,
             eye_color,
@@ -401,6 +407,7 @@ def _looks_from_row(r: dict[str, Any]) -> Looks:
         age=r["age"],
         gender=r.get("gender") or "Female",
         ethnicity=r["ethnicity"],
+        nationality=r.get("nationality"),
         hair_color=r["hair_color"],
         hair_style=r["hair_style"],
         eye_color=r["eye_color"],
@@ -566,6 +573,41 @@ async def archive_influencer(influencer_id: int) -> dict[str, str]:
     return {"status": "archived"}
 
 
+@app.delete("/api/influencers/{influencer_id}")
+async def delete_influencer(influencer_id: int) -> dict[str, Any]:
+    """Hard-delete influencer and all their generations + media files."""
+    row = await db.fetchone("SELECT * FROM influencers WHERE id = ?", (influencer_id,))
+    if not row:
+        raise HTTPException(404, "Influencer not found")
+    gens = await db.fetchall(
+        "SELECT * FROM generations WHERE influencer_id = ?",
+        (influencer_id,),
+    )
+    removed_files = 0
+    for gen in gens:
+        for key in (
+            "output_path",
+            "output_thumbnail_path",
+            "teaser_path",
+            "vault_file_path",
+        ):
+            path = gen.get(key)
+            if not path:
+                continue
+            p = Path(str(path))
+            if p.is_file():
+                try:
+                    p.unlink()
+                    removed_files += 1
+                except OSError:
+                    pass
+    await db.execute("DELETE FROM influencer_wardrobe WHERE influencer_id = ?", (influencer_id,))
+    await db.execute("DELETE FROM schedules WHERE influencer_id = ?", (influencer_id,))
+    await db.execute("DELETE FROM generations WHERE influencer_id = ?", (influencer_id,))
+    await db.execute("DELETE FROM influencers WHERE id = ?", (influencer_id,))
+    return {"status": "deleted", "generations_removed": len(gens), "files_removed": removed_files}
+
+
 @app.post("/api/influencers/{influencer_id}/face-lock", response_model=InfluencerDetail)
 async def lock_influencer_face(influencer_id: int, body: FaceLockRequest) -> InfluencerDetail:
     """Set or clear the look's base portrait used for face-consistent img2img."""
@@ -631,8 +673,29 @@ async def create_wardrobe(body: WardrobeCreate) -> WardrobeItem:
     return WardrobeItem(id=int(wid), **body.model_dump())
 
 
+@app.get("/api/influencers/{influencer_id}/wardrobe", response_model=list[WardrobeItem])
+async def list_influencer_wardrobe(influencer_id: int) -> list[WardrobeItem]:
+    """Outfits assigned to this influencer, plus shared wardrobe items."""
+    rows = await db.fetchall(
+        """
+        SELECT w.* FROM wardrobe_items w
+        WHERE w.is_shared = 1
+           OR w.id IN (
+                SELECT wardrobe_item_id FROM influencer_wardrobe WHERE influencer_id = ?
+           )
+        ORDER BY w.id DESC
+        """,
+        (influencer_id,),
+    )
+    return [WardrobeItem(**r) for r in rows]
+
+
 @app.post("/api/influencers/{influencer_id}/wardrobe/{item_id}")
 async def assign_wardrobe(influencer_id: int, item_id: int) -> dict[str, str]:
+    inf = await db.fetchone("SELECT id FROM influencers WHERE id = ?", (influencer_id,))
+    item = await db.fetchone("SELECT id FROM wardrobe_items WHERE id = ?", (item_id,))
+    if not inf or not item:
+        raise HTTPException(404, "Influencer or wardrobe item not found")
     await db.execute(
         """
         INSERT OR IGNORE INTO influencer_wardrobe(influencer_id, wardrobe_item_id)
@@ -641,6 +704,15 @@ async def assign_wardrobe(influencer_id: int, item_id: int) -> dict[str, str]:
         (influencer_id, item_id),
     )
     return {"status": "assigned"}
+
+
+@app.delete("/api/influencers/{influencer_id}/wardrobe/{item_id}")
+async def unassign_wardrobe(influencer_id: int, item_id: int) -> dict[str, str]:
+    await db.execute(
+        "DELETE FROM influencer_wardrobe WHERE influencer_id = ? AND wardrobe_item_id = ?",
+        (influencer_id, item_id),
+    )
+    return {"status": "unassigned"}
 
 
 # --- Generations ---
@@ -701,6 +773,7 @@ async def create_generation(body: GenerationCreate) -> Generation:
     looks_prompt = build_looks_prompt(
         age=(looks or {}).get("age"),
         ethnicity=(looks or {}).get("ethnicity"),
+        nationality=(looks or {}).get("nationality"),
         hair_color=(looks or {}).get("hair_color"),
         hair_style=(looks or {}).get("hair_style"),
         eye_color=(looks or {}).get("eye_color"),
@@ -720,13 +793,14 @@ async def create_generation(body: GenerationCreate) -> Generation:
         face_locked=face_locked,
     )
     negative = resolve_negative_prompt(is_nsfw=is_nsfw, user_prompt=body.user_prompt)
+    wardrobe_id = None if is_nsfw else body.wardrobe_item_id
     cur = await db.execute(
         """
         INSERT INTO generations(
             influencer_id, user_prompt, expanded_prompt, negative_prompt,
             workflow_type, model_used, llm_used,
-            aspect_ratio, seed, steps, cfg_scale, is_nsfw, status
-        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+            aspect_ratio, seed, steps, cfg_scale, is_nsfw, wardrobe_item_id, status
+        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
         """,
         (
             body.influencer_id,
@@ -741,6 +815,7 @@ async def create_generation(body: GenerationCreate) -> Generation:
             body.steps,
             body.cfg_scale,
             int(is_nsfw),
+            wardrobe_id,
         ),
     )
     gid = cur.lastrowid
@@ -756,12 +831,14 @@ async def regenerate(generation_id: int, require_real: bool = False) -> Generati
     parent = await db.fetchone("SELECT * FROM generations WHERE id = ?", (generation_id,))
     if not parent:
         raise HTTPException(404, "Not found")
+    # Always draw a new seed — reusing the parent seed makes ComfyUI return the same image.
     cur = await db.execute(
         """
         INSERT INTO generations(
             influencer_id, parent_generation_id, user_prompt, expanded_prompt, negative_prompt,
-            workflow_type, model_used, llm_used, aspect_ratio, seed, steps, cfg_scale, is_nsfw, status
-        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+            workflow_type, model_used, llm_used, aspect_ratio, seed, steps, cfg_scale, is_nsfw,
+            wardrobe_item_id, status
+        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
         """,
         (
             parent["influencer_id"],
@@ -773,10 +850,11 @@ async def regenerate(generation_id: int, require_real: bool = False) -> Generati
             parent["model_used"],
             parent["llm_used"],
             parent["aspect_ratio"],
-            parent["seed"],
+            None,
             parent["steps"],
             parent["cfg_scale"],
             parent["is_nsfw"],
+            parent.get("wardrobe_item_id"),
         ),
     )
     gid = cur.lastrowid
@@ -785,6 +863,115 @@ async def regenerate(generation_id: int, require_real: bool = False) -> Generati
     row = await db.fetchone("SELECT * FROM generations WHERE id = ?", (gid,))
     assert row
     return Generation(**row)
+
+
+@app.post("/api/generations/{generation_id}/replace", response_model=Generation)
+async def replace_generation(generation_id: int, body: GenerationReplace) -> Generation:
+    """Overwrite an existing post with a new prompt/outfit (same id, new seed)."""
+    row = await db.fetchone("SELECT * FROM generations WHERE id = ?", (generation_id,))
+    if not row:
+        raise HTTPException(404, "Not found")
+    if row.get("is_vaulted"):
+        raise HTTPException(400, "Unvault or edit a non-vaulted post")
+
+    influencer = await db.fetchone("SELECT * FROM influencers WHERE id = ?", (row["influencer_id"],))
+    if not influencer:
+        raise HTTPException(400, "Influencer missing")
+    personality = await db.fetchone(
+        "SELECT * FROM personalities WHERE id = ?",
+        (influencer["personality_id"],),
+    )
+    looks = await db.fetchone("SELECT * FROM looks WHERE id = ?", (influencer["looks_id"],))
+    age_rating = (personality or {}).get("age_rating") or "Family"
+    is_nsfw = bool(
+        body.is_nsfw if body.is_nsfw is not None else row["is_nsfw"] or prompt_implies_nsfw(body.user_prompt)
+    )
+    if is_nsfw and age_rating in ("Family", "Teen"):
+        raise HTTPException(400, "Explicit / NSFW requires Adult or 18+ age rating")
+
+    wardrobe_id = body.wardrobe_item_id if body.wardrobe_item_id is not None else row.get("wardrobe_item_id")
+    wardrobe_keywords = None
+    if wardrobe_id and not is_nsfw:
+        item = await db.fetchone(
+            "SELECT prompt_keywords FROM wardrobe_items WHERE id = ?",
+            (wardrobe_id,),
+        )
+        if item:
+            wardrobe_keywords = item["prompt_keywords"]
+        else:
+            wardrobe_id = None
+
+    face_locked = resolve_face_lock_path(looks) is not None
+    looks_prompt = build_looks_prompt(
+        age=(looks or {}).get("age"),
+        ethnicity=(looks or {}).get("ethnicity"),
+        nationality=(looks or {}).get("nationality"),
+        hair_color=(looks or {}).get("hair_color"),
+        hair_style=(looks or {}).get("hair_style"),
+        eye_color=(looks or {}).get("eye_color"),
+        style=(looks or {}).get("style"),
+        gender=(looks or {}).get("gender"),
+        body=body_from_json((looks or {}).get("body_json")),
+        for_nsfw=is_nsfw,
+        face_locked=face_locked,
+    )
+    expanded = expand_prompt(
+        body.user_prompt,
+        influencer_name=influencer["name"],
+        looks_prompt=looks_prompt or (looks or {}).get("base_prompt") or "",
+        wardrobe_keywords=None if is_nsfw else wardrobe_keywords,
+        system_prompt=(personality or {}).get("system_prompt"),
+        is_nsfw=is_nsfw,
+        face_locked=face_locked,
+    )
+    negative = resolve_negative_prompt(is_nsfw=is_nsfw, user_prompt=body.user_prompt)
+    workflow_type = body.workflow_type or row["workflow_type"]
+    aspect_ratio = body.aspect_ratio or row["aspect_ratio"]
+
+    # Drop old cleartext so a new file can take its place.
+    for key in ("output_path", "output_thumbnail_path", "teaser_path"):
+        path = row.get(key)
+        if path and Path(str(path)).is_file():
+            try:
+                Path(str(path)).unlink()
+            except OSError:
+                pass
+
+    await db.execute(
+        """
+        UPDATE generations
+        SET user_prompt = ?,
+            expanded_prompt = ?,
+            negative_prompt = ?,
+            workflow_type = ?,
+            aspect_ratio = ?,
+            seed = NULL,
+            is_nsfw = ?,
+            wardrobe_item_id = ?,
+            output_path = NULL,
+            output_thumbnail_path = NULL,
+            teaser_path = NULL,
+            error_message = NULL,
+            status = 'pending',
+            completed_at = NULL,
+            model_used = 'stub'
+        WHERE id = ?
+        """,
+        (
+            body.user_prompt,
+            expanded,
+            negative,
+            workflow_type,
+            aspect_ratio,
+            int(is_nsfw),
+            None if is_nsfw else wardrobe_id,
+            generation_id,
+        ),
+    )
+    await _require_queue().enqueue(int(generation_id), require_real=body.require_real)
+    updated = await db.fetchone("SELECT * FROM generations WHERE id = ?", (generation_id,))
+    assert updated
+    return Generation(**updated)
 
 
 @app.post("/api/post-process")
@@ -935,17 +1122,26 @@ async def vault_setup(body: VaultSetup) -> dict[str, str]:
 
 
 @app.post("/api/vault/unlock")
-async def vault_unlock(body: VaultUnlock) -> dict[str, bool]:
-    ok = await _require_vault().unlock(body.pin)
+async def vault_unlock(body: VaultUnlock) -> dict[str, Any]:
+    v = _require_vault()
+    ok = await v.unlock(body.pin)
     if not ok:
         raise HTTPException(401, "Invalid PIN")
-    return {"unlocked": True}
+    pending = await v.count_pending_nsfw()
+    return {"unlocked": True, "pending_nsfw": pending}
 
 
 @app.post("/api/vault/lock")
 async def vault_lock() -> dict[str, str]:
     _require_vault().lock()
     return {"status": "locked"}
+
+
+@app.post("/api/vault/end-view")
+async def vault_end_view() -> dict[str, str]:
+    """Clear decrypted reveal cache after closing a lightbox (PIN required again next open)."""
+    _require_vault().end_view_session()
+    return {"status": "view_ended"}
 
 
 @app.get("/api/vault/generations")

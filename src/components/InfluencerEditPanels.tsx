@@ -18,6 +18,7 @@ import {
   HUMORS,
   LOOK_STYLES,
   MUSCLE_TONES,
+  NATIONALITIES,
   NICHES,
   OTHER,
   SKIN_TONES,
@@ -59,6 +60,8 @@ export function InfluencerEditPanels({ detail, onSaved }: Props) {
   const [genderOther, setGenderOther] = useState("");
   const [ethnicity, setEthnicity] = useState("Caucasian");
   const [ethnicityOther, setEthnicityOther] = useState("");
+  const [nationality, setNationality] = useState("American");
+  const [nationalityOther, setNationalityOther] = useState("");
   const [hairColor, setHairColor] = useState("Brown");
   const [hairColorOther, setHairColorOther] = useState("");
   const [hairStyle, setHairStyle] = useState("Long straight");
@@ -112,6 +115,9 @@ export function InfluencerEditPanels({ detail, onSaved }: Props) {
     const e = initSelect(looks.ethnicity, ETHNICITIES);
     setEthnicity(e.value);
     setEthnicityOther(e.other);
+    const nat = initSelect(looks.nationality, NATIONALITIES);
+    setNationality(nat.value);
+    setNationalityOther(nat.other);
     const hc = initSelect(looks.hair_color, HAIR_COLORS);
     setHairColor(hc.value);
     setHairColorOther(hc.other);
@@ -193,6 +199,7 @@ export function InfluencerEditPanels({ detail, onSaved }: Props) {
         age,
         gender: resolvedGender,
         ethnicity: resolveSelectValue(ethnicity, ethnicityOther),
+        nationality: resolveSelectValue(nationality, nationalityOther),
         hair_color: resolveSelectValue(hairColor, hairColorOther),
         hair_style: resolveSelectValue(hairStyle, hairStyleOther),
         eye_color: resolveSelectValue(eyeColor, eyeColorOther),
@@ -322,7 +329,14 @@ export function InfluencerEditPanels({ detail, onSaved }: Props) {
             <div>
               <dt className="font-semibold text-[var(--ink)]">Appearance</dt>
               <dd>
-                {[looks.ethnicity, looks.hair_color, looks.hair_style, looks.eye_color, looks.style]
+                {[
+                  looks.nationality,
+                  looks.ethnicity,
+                  looks.hair_color,
+                  looks.hair_style,
+                  looks.eye_color,
+                  looks.style,
+                ]
                   .filter(Boolean)
                   .join(" · ") || "—"}
               </dd>
@@ -369,6 +383,15 @@ export function InfluencerEditPanels({ detail, onSaved }: Props) {
               otherValue={ethnicityOther}
               onChange={setEthnicity}
               onOtherChange={setEthnicityOther}
+            />
+            <SelectWithOther
+              label="Nationality"
+              options={NATIONALITIES}
+              value={nationality}
+              otherValue={nationalityOther}
+              onChange={setNationality}
+              onOtherChange={setNationalityOther}
+              otherPlaceholder="e.g. Colombian-Korean"
             />
             <SelectWithOther
               label="Hair color"

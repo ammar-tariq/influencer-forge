@@ -14,7 +14,7 @@ import { Scheduler } from "./pages/Scheduler";
 import { Vault } from "./pages/Vault";
 import { Settings } from "./pages/Settings";
 import { Monitor } from "./pages/Monitor";
-import { Post } from "./pages/Post";
+import { EditPosts } from "./pages/EditPosts";
 
 function Shell({ children }: { children: ReactNode }) {
   return (
@@ -52,7 +52,8 @@ export default function App() {
               <Route path="/vault" element={<Vault />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/monitor" element={<Monitor />} />
-              <Route path="/post" element={<Post />} />
+              <Route path="/post" element={<EditPosts />} />
+              <Route path="/edit-posts" element={<EditPosts />} />
             </Routes>
           </Shell>
         }

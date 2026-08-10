@@ -47,6 +47,15 @@ class VaultService:
             (pin_hash, salt, str(settings.vault_dir)),
         )
         self._unlocked_key = self._derive_key(pin, salt)
+        await self._auto_vault_pending_safe()
+
+    async def _auto_vault_pending_safe(self) -> None:
+        try:
+            pending = await self.vault_pending_nsfw()
+            if pending.get("count"):
+                logger.info("Auto-vaulted %s pending NSFW", pending["count"])
+        except (RuntimeError, ValueError, OSError) as exc:
+            logger.warning("Auto-vault pending failed: %s", exc)
 
     async def unlock(self, pin: str) -> bool:
         row = await self.db.fetchone("SELECT * FROM vault_metadata WHERE id = 1")
@@ -57,6 +66,8 @@ class VaultService:
         except VerifyMismatchError:
             return False
         self._unlocked_key = self._derive_key(pin, row["pin_salt"])
+        # Any pending cleartext NSFW is encrypted as soon as the vault can open.
+        await self._auto_vault_pending_safe()
         return True
 
     def lock(self) -> None:
@@ -107,6 +118,10 @@ class VaultService:
         cache = settings.media_dir / "vault_cache"
         if cache.exists():
             shutil.rmtree(cache, ignore_errors=True)
+
+    def end_view_session(self) -> None:
+        """Wipe decrypted reveal cache but keep the vault unlocked for browsing teasers."""
+        self._wipe_reveal_cache()
 
     async def vault_generation(self, generation_id: int) -> dict[str, str]:
         """Encrypt output, write teaser, wipe cleartext paths from disk + DB."""

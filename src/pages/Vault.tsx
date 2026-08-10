@@ -1,15 +1,19 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, mediaUrl, vaultRevealUrl } from "../api/client";
+import { BackLink } from "../components/common/BackLink";
 import { ImageLightbox } from "../components/common/ImageLightbox";
 import { MediaImage } from "../components/common/MediaImage";
+import { PinPrompt } from "../components/common/PinPrompt";
 import { StatusBadge } from "../components/common/StatusBadge";
 import { IconLock, IconShield } from "../components/common/icons";
 import { useVault } from "../hooks/useVault";
+import { useVaultReveal } from "../hooks/useVaultReveal";
 import type { VaultedGeneration } from "../types";
 
 export function Vault() {
-  const { status, setup, unlock, lock, vaultPending } = useVault();
+  const { status, setup, unlock, lock } = useVault();
+  const reveal = useVaultReveal();
   const [pin, setPin] = useState("");
   const [selected, setSelected] = useState<VaultedGeneration | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -18,12 +22,17 @@ export function Vault() {
   const configured = Boolean(status.data?.configured);
   const pending = status.data?.pending_nsfw ?? 0;
 
+  // Blur cards only while vault is unlocked for browsing.
   const vaulted = useQuery({
     queryKey: ["vault-generations"],
     queryFn: api.listVaultGenerations,
-    enabled: configured,
+    enabled: configured && unlocked,
     refetchInterval: unlocked ? 4000 : false,
   });
+  const vaultItems = unlocked ? (vaulted.data ?? []) : [];
+  const selectedIndex = selected ? vaultItems.findIndex((g) => g.id === selected.id) : -1;
+  const hasPrev = selectedIndex > 0;
+  const hasNext = selectedIndex >= 0 && selectedIndex < vaultItems.length - 1;
 
   const onSetup = async () => {
     setError(null);
@@ -35,7 +44,7 @@ export function Vault() {
     }
   };
 
-  const onUnlock = async () => {
+  const onUnlockBrowse = async () => {
     setError(null);
     try {
       await unlock.mutateAsync(pin);
@@ -45,13 +54,26 @@ export function Vault() {
     }
   };
 
+  const closeLightbox = async () => {
+    setSelected(null);
+    await reveal.endReveal();
+  };
+
+  const openVaulted = (g: VaultedGeneration) => {
+    // Always ask PIN for full reveal — even if browsing is unlocked.
+    reveal.requestReveal(() => setSelected(g));
+  };
+
   return (
     <div className="space-y-6">
+      <div className="flex flex-wrap items-center gap-3">
+        <BackLink fallbackTo="/" label="Back" />
+      </div>
       <header>
         <h1 className="text-3xl tracking-tight">Privacy Vault</h1>
         <p className="muted mt-1">
-          PIN-protected AES-256-GCM storage. NSFW outputs are encrypted; History only keeps blurred
-          teasers.
+          NSFW posts encrypt into the vault automatically. Locked = cards hidden. Unlocked = blur
+          teasers. Opening a post asks for PIN again after you close the viewer.
         </p>
       </header>
 
@@ -63,7 +85,7 @@ export function Vault() {
           </span>
           <span className={`status-badge ${unlocked ? "tone-ok" : "tone-wait"}`}>
             <IconLock size={13} />
-            <span>{unlocked ? "Unlocked" : "Locked"}</span>
+            <span>{unlocked ? "Browsing unlocked" : "Locked — NSFW hidden"}</span>
           </span>
           {configured && pending > 0 && (
             <span className="status-badge tone-warn" title="NSFW still in cleartext">
@@ -89,35 +111,37 @@ export function Vault() {
           ) : (
             <>
               {!unlocked && (
-                <button className="btn" disabled={pin.length < 4 || unlock.isPending} onClick={onUnlock}>
-                  Unlock
+                <button
+                  className="btn"
+                  disabled={pin.length < 4 || unlock.isPending}
+                  onClick={onUnlockBrowse}
+                >
+                  Unlock to show blur cards
                 </button>
               )}
               {unlocked && (
-                <button className="btn secondary" onClick={() => lock.mutate()}>
-                  Lock
-                </button>
-              )}
-              {unlocked && pending > 0 && (
                 <button
-                  className="btn"
-                  disabled={vaultPending.isPending}
-                  onClick={() => vaultPending.mutate()}
+                  className="btn secondary"
+                  onClick={async () => {
+                    await closeLightbox();
+                    lock.mutate();
+                  }}
                 >
-                  {vaultPending.isPending
-                    ? "Vaulting…"
-                    : `Vault ${pending} pending NSFW`}
+                  Lock (hide NSFW)
                 </button>
               )}
             </>
           )}
         </div>
-        {vaultPending.data && (
+        {unlocked && pending > 0 && (
           <p className="muted mt-3 text-sm">
-            Moved {vaultPending.data.count} into the vault
-            {vaultPending.data.errors.length
-              ? ` · ${vaultPending.data.errors.length} failed`
-              : ""}
+            {pending} NSFW file{pending === 1 ? "" : "s"} still encrypting — refresh in a moment.
+          </p>
+        )}
+        {!unlocked && pending > 0 && (
+          <p className="muted mt-3 text-sm">
+            {pending} NSFW post{pending === 1 ? "" : "s"} waiting — unlock to encrypt them
+            automatically.
           </p>
         )}
       </div>
@@ -125,16 +149,29 @@ export function Vault() {
       {!configured && (
         <div className="panel border-[var(--accent-2)]">
           <p className="text-sm">
-            Set a PIN to encrypt NSFW generations. With the vault unlocked, new NSFW jobs auto-vault
-            and cleartext files are deleted.
+            Set a PIN to encrypt NSFW generations. Unlock to browse blurred cards; opening a card
+            always asks for the PIN.
           </p>
         </div>
       )}
 
-      {configured && (
+      {configured && !unlocked && (
+        <div className="panel">
+          <p className="muted text-sm">
+            Vault is locked — NSFW / vaulted posts are hidden. Unlock above to see blurred teasers.
+          </p>
+        </div>
+      )}
+
+      {configured && unlocked && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {(vaulted.data ?? []).map((g) => (
-            <button key={g.id} className="panel gen-card text-left" onClick={() => setSelected(g)}>
+          {vaultItems.map((g) => (
+            <button
+              key={g.id}
+              type="button"
+              className="panel gen-card text-left"
+              onClick={() => openVaulted(g)}
+            >
               <div className="gen-card-media">
                 <MediaImage
                   path={g.teaser_path}
@@ -148,32 +185,52 @@ export function Vault() {
               <span className="gen-card-id">#{g.id}</span>
             </button>
           ))}
-          {!vaulted.data?.length && (
+          {!vaultItems.length && (
             <p className="muted text-sm">No vaulted generations yet.</p>
           )}
         </div>
       )}
 
+      <PinPrompt
+        open={reveal.pinOpen}
+        title="Enter PIN to view"
+        subtitle="PIN is required every time you open a private post."
+        confirmLabel="View post"
+        busy={reveal.pinBusy}
+        error={reveal.pinError}
+        onCancel={reveal.cancelPin}
+        onSubmit={reveal.submitPin}
+      />
+
       <ImageLightbox
-        open={Boolean(selected)}
-        onClose={() => setSelected(null)}
+        open={Boolean(selected) && reveal.viewUnlocked}
+        onClose={() => {
+          void closeLightbox();
+        }}
         title={selected ? `Vaulted #${selected.id}` : ""}
-        subtitle={selected?.user_prompt}
-        imageSrc={
+        subtitle={
           selected
-            ? unlocked
-              ? `${vaultRevealUrl(selected.id)}?t=${Date.now()}`
-              : mediaUrl(selected.teaser_path)
-            : null
+            ? `${selected.user_prompt ?? ""}${
+                selectedIndex >= 0 ? ` · ${selectedIndex + 1}/${vaultItems.length}` : ""
+              }`
+            : undefined
         }
-        placeholder={unlocked ? "Image unavailable" : "Unlock the vault to view the full image"}
+        imageSrc={
+          selected && reveal.viewUnlocked
+            ? `${vaultRevealUrl(selected.id)}?t=view-${selected.id}`
+            : selected
+              ? mediaUrl(selected.teaser_path)
+              : null
+        }
+        placeholder="Enter PIN to view"
+        hasPrev={hasPrev}
+        hasNext={hasNext}
+        onPrev={() => hasPrev && setSelected(vaultItems[selectedIndex - 1] ?? null)}
+        onNext={() => hasNext && setSelected(vaultItems[selectedIndex + 1] ?? null)}
       >
-        {selected && !unlocked && (
-          <p className="muted text-sm">Showing blurred teaser only — unlock above to decrypt.</p>
-        )}
-        {selected && unlocked && (
+        {selected && (
           <p className="muted text-xs">
-            Cleartext is not stored — this view is decrypted in memory/cache while unlocked.
+            Closing this viewer clears the reveal — opening another post asks for the PIN again.
           </p>
         )}
       </ImageLightbox>

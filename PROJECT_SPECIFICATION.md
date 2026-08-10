@@ -115,7 +115,8 @@ Stores the physical "body" of the influencer (the face seed).
 | `name` | TEXT | NOT NULL | e.g., "Elena's Look" |
 | `age` | INTEGER | | 18-80 |
 | `gender` | TEXT | | "Female", "Male", "Trans girl", or custom |
-| `ethnicity` | TEXT | | "Caucasian", "Asian", "Black", etc. |
+| `ethnicity` | TEXT | | "Caucasian", "East Asian", "Black / African", etc. |
+| `nationality` | TEXT | | "Russian", "Chinese", "American", etc. — cultural look cue in prompts |
 | `hair_color` | TEXT | | "Blonde", "Brown", "Black", etc. |
 | `hair_style` | TEXT | | "Long straight", "Short curly", etc. |
 | `body_json` | TEXT (JSON) | | height, body_type, breast_size/chest, waist, hips, butt_size, skin_tone, muscle_tone, body_hair, … |

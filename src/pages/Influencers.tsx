@@ -2,7 +2,6 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api/client";
 import { MediaImage } from "../components/common/MediaImage";
-import { FaceLockBadge } from "../components/common/StatusBadge";
 import { IconImage, IconPlus } from "../components/common/icons";
 
 export function Influencers() {
@@ -17,7 +16,7 @@ export function Influencers() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl tracking-tight">Influencers</h1>
-          <p className="muted mt-1">All of your creators — open one for details and their posts.</p>
+          <p className="muted mt-1">Tap a card to open their profile.</p>
         </div>
         <Link className="btn inline-flex items-center gap-2" to="/wizard">
           <IconPlus size={16} /> New influencer
@@ -47,9 +46,6 @@ export function Influencers() {
                   className="h-48 w-full rounded-xl object-cover"
                   fallback="No photo yet"
                 />
-                <span className="status-row status-row-overlay">
-                  <FaceLockBadge faceLock={inf.face_lock} overlay />
-                </span>
               </div>
               <h2 className="text-xl">{inf.name}</h2>
               <p className="muted mt-1 text-sm">

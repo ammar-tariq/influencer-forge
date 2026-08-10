@@ -25,7 +25,7 @@ const links = [
   ["/vault", "Privacy Vault", IconShield],
   ["/settings", "Settings", IconSettings],
   ["/monitor", "System", IconActivity],
-  ["/post", "Edit photo", IconImage],
+  ["/edit-posts", "Edit posts", IconImage],
 ] as const;
 
 export function Sidebar() {

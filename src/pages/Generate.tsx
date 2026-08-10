@@ -4,7 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
 import { MediaImage } from "../components/common/MediaImage";
 import { ReadinessChecklist } from "../components/common/ReadinessChecklist";
-import { FaceLockBadge, StatusBadge } from "../components/common/StatusBadge";
+import { BackLink } from "../components/common/BackLink";
+import { StatusBadge } from "../components/common/StatusBadge";
 import { IconSpinner } from "../components/common/icons";
 import {
   ASPECT_RATIOS,
@@ -28,7 +29,6 @@ export function Generate() {
   const qc = useQueryClient();
   const influencers = useQuery({ queryKey: ["influencers"], queryFn: api.listInfluencers });
   const personalities = useQuery({ queryKey: ["personalities"], queryFn: api.listPersonalities });
-  const wardrobe = useQuery({ queryKey: ["wardrobe"], queryFn: api.listWardrobe });
   const readiness = useQuery({ queryKey: ["readiness"], queryFn: api.readiness, refetchInterval: 5000 });
   const { status: vaultStatus } = useVault();
   const queue = useQueue();
@@ -52,25 +52,58 @@ export function Generate() {
   );
   const [activeId, setActiveId] = useState<number | null>(null);
 
+  const wardrobe = useQuery({
+    queryKey: ["wardrobe", influencerId || "none"],
+    queryFn: () => api.listInfluencerWardrobe(Number(influencerId)),
+    enabled: influencerId !== "",
+  });
+
   const selected = influencers.data?.find((i) => i.id === influencerId);
   const personality = personalities.data?.find((p) => p.id === selected?.personality_id);
   const ageRating = selected?.age_rating ?? personality?.age_rating ?? null;
   const nsfwAllowed = Boolean(selected) && !nsfwBlocked(ageRating);
+  const wardrobeItem = (wardrobe.data ?? []).find((w) => w.id === wardrobeId);
 
-  const scene = useMemo(
-    () =>
-      composeScenePrompt({
+  const scene = useMemo(() => {
+    // Wardrobe outfit replaces dressing presets so the same bikini/etc. stays consistent.
+    if (wardrobeItem && !nsfw) {
+      return composeScenePrompt({
         framing,
         pose,
-        dressing,
+        dressing: "other",
         setting,
         poseOther,
-        dressingOther,
+        dressingOther: wardrobeItem.prompt_keywords,
         settingOther,
         notes,
-      }),
-    [framing, pose, dressing, setting, poseOther, dressingOther, settingOther, notes],
-  );
+      });
+    }
+    return composeScenePrompt({
+      framing,
+      pose,
+      dressing,
+      setting,
+      poseOther,
+      dressingOther,
+      settingOther,
+      notes,
+    });
+  }, [
+    framing,
+    pose,
+    dressing,
+    setting,
+    poseOther,
+    dressingOther,
+    settingOther,
+    notes,
+    wardrobeItem,
+    nsfw,
+  ]);
+
+  useEffect(() => {
+    setWardrobeId("");
+  }, [influencerId]);
 
   useEffect(() => {
     if (!selected) {
@@ -143,6 +176,12 @@ export function Generate() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
+      <div className="flex flex-wrap items-center gap-3">
+        <BackLink
+          fallbackTo={influencerId !== "" ? `/influencers/${influencerId}` : "/influencers"}
+          label="Back"
+        />
+      </div>
       <header>
         <h1 className="text-3xl tracking-tight">Create a post</h1>
         <p className="muted mt-1">
@@ -192,7 +231,6 @@ export function Generate() {
               {(influencers.data ?? []).map((inf) => (
                 <option key={inf.id} value={inf.id}>
                   {inf.name}
-                  {inf.face_lock && inf.face_lock !== "none" ? " · face locked" : ""}
                 </option>
               ))}
             </select>
@@ -200,10 +238,6 @@ export function Generate() {
               <p className="muted mt-2 text-sm">
                 <Link className="underline" to={`/influencers/${influencerId}`}>
                   View profile
-                </Link>
-                {" · "}
-                <Link className="underline" to={`/history?influencer=${influencerId}`}>
-                  Their posts
                 </Link>
               </p>
             )}
@@ -240,8 +274,39 @@ export function Generate() {
           </div>
 
           <div className="field">
-            <label>Dressing</label>
-            <select value={dressing} onChange={(e) => setDressing(e.target.value)}>
+            <label>Wardrobe outfit (SFW — consistent clothing)</label>
+            <select
+              value={wardrobeId}
+              disabled={nsfw || scene.nsfw || influencerId === ""}
+              onChange={(e) => setWardrobeId(e.target.value ? Number(e.target.value) : "")}
+            >
+              <option value="">None — use dressing preset below</option>
+              {(wardrobe.data ?? []).map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
+              ))}
+            </select>
+            {influencerId !== "" && !(wardrobe.data ?? []).length && (
+              <p className="muted mt-1 text-xs">
+                No outfits for this influencer yet.{" "}
+                <Link className="underline" to="/wardrobe">
+                  Create & assign in Wardrobe
+                </Link>
+              </p>
+            )}
+            {wardrobeItem && (
+              <p className="muted mt-1 text-xs">Wearing: {wardrobeItem.prompt_keywords}</p>
+            )}
+          </div>
+
+          <div className="field">
+            <label>Dressing {wardrobeItem && !nsfw ? "(overridden by wardrobe)" : ""}</label>
+            <select
+              value={dressing}
+              disabled={Boolean(wardrobeItem) && !nsfw}
+              onChange={(e) => setDressing(e.target.value)}
+            >
               {DRESSINGS.map((d) => (
                 <option key={d.value} value={d.value}>
                   {d.label}
@@ -249,7 +314,7 @@ export function Generate() {
                 </option>
               ))}
             </select>
-            {dressing === "other" && (
+            {dressing === "other" && !(wardrobeItem && !nsfw) && (
               <input
                 className="mt-2"
                 value={dressingOther}
@@ -316,22 +381,6 @@ export function Generate() {
             </div>
           </div>
 
-          <div className="field">
-            <label>Wardrobe item (optional, SFW only)</label>
-            <select
-              value={wardrobeId}
-              disabled={nsfw || scene.nsfw}
-              onChange={(e) => setWardrobeId(e.target.value ? Number(e.target.value) : "")}
-            >
-              <option value="">None</option>
-              {(wardrobe.data ?? []).map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
           <label className="mb-3 flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -373,14 +422,7 @@ export function Generate() {
               className="h-48 w-full rounded-xl object-cover"
               fallback={selected ? "No portrait yet" : "Select an influencer"}
             />
-            {selected && (
-              <>
-                <p className="mt-2 text-sm">{selected.name}</p>
-                <div className="mt-2">
-                  <FaceLockBadge faceLock={selected.face_lock} />
-                </div>
-              </>
-            )}
+            {selected && <p className="mt-2 text-sm">{selected.name}</p>}
           </div>
           <div className="panel">
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide muted">Progress</h2>

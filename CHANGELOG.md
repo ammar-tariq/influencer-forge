@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Influencer cards open the profile on click; removed Open profile / Create post / Their posts button clusters and face-lock status badges.
+- Profile: Back control, Delete (hard-delete + media) instead of Archive; Unlock face / Library clutter removed; wardrobe assign section added.
+- Wardrobe is part of the create-post flow (assigned outfits inject consistent keywords); Edit photo replaced by Edit posts (replace generation in place).
+
 ### Added
 
 - Influencers list + detail screens (`/influencers`, `/influencers/:id`) with personality/looks, per-influencer generations, archive, and Library deep links (`?influencer=`).

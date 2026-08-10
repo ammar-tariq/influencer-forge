@@ -142,6 +142,7 @@ def build_looks_prompt(
     eye_color: str | None,
     style: str | None,
     gender: str | None = None,
+    nationality: str | None = None,
     body: dict[str, str] | None = None,
     for_nsfw: bool = False,
     face_locked: bool = False,
@@ -150,10 +151,16 @@ def build_looks_prompt(
 
     When face_locked, omit hair/eyes/style text — the reference image is the source
     of truth. Wizard fields like \"Red Bob\" otherwise fight a curly lock photo.
+    Nationality stays even when locked so body/scene cues (e.g. Russian, Chinese) remain.
     """
     person = gender_phrase(gender)
+    nationality_token = None
+    if nationality and str(nationality).strip():
+        nat = str(nationality).strip()
+        nationality_token = f"{nat} nationality" if "nationality" not in nat.lower() else nat
     parts: list[str | None] = [
         f"{age}-year-old adult {person}" if age else f"adult {person}",
+        nationality_token,
         ethnicity,
     ]
     if not face_locked:

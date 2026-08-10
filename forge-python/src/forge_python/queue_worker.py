@@ -146,6 +146,7 @@ class QueueWorker:
         looks_prompt = build_looks_prompt(
             age=(looks or {}).get("age"),
             ethnicity=(looks or {}).get("ethnicity"),
+            nationality=(looks or {}).get("nationality"),
             hair_color=(looks or {}).get("hair_color"),
             hair_style=(looks or {}).get("hair_style"),
             eye_color=(looks or {}).get("eye_color"),
@@ -157,6 +158,14 @@ class QueueWorker:
         ) or (looks or {}).get("base_prompt") or "adult person"
         # Wardrobe fights nude/explicit scenes — only apply when SFW.
         wardrobe_keywords = None
+        wardrobe_id = row.get("wardrobe_item_id")
+        if wardrobe_id and not is_nsfw:
+            item = await self.db.fetchone(
+                "SELECT prompt_keywords FROM wardrobe_items WHERE id = ?",
+                (wardrobe_id,),
+            )
+            if item:
+                wardrobe_keywords = item["prompt_keywords"]
         expanded = expand_prompt(
             row["user_prompt"],
             influencer_name=(influencer or {}).get("name") or "Influencer",
@@ -203,12 +212,18 @@ class QueueWorker:
             """,
             (str(out), str(thumb), seed, model, generation_id),
         )
-        # Face lock is explicit: the profile "Lock this face" action sets base_portrait_path
-        # so creators can re-prompt until they like the identity shot.
-        # Auto-vault NSFW when the privacy vault is unlocked.
-        if is_nsfw and self.vault is not None and self.vault.unlocked:
+        # NSFW always goes into the vault automatically — no manual "Move to vault".
+        # Requires a configured vault that is currently unlocked (PIN session).
+        # If locked, the file stays pending and is vaulted on the next unlock.
+        if is_nsfw and self.vault is not None:
             try:
-                await self.vault.vault_generation(generation_id)
-                logger.info("Auto-vaulted NSFW generation %s", generation_id)
+                if await self.vault.is_configured() and self.vault.unlocked:
+                    await self.vault.vault_generation(generation_id)
+                    logger.info("Auto-vaulted NSFW generation %s", generation_id)
+                elif await self.vault.is_configured():
+                    logger.info(
+                        "NSFW gen %s pending vault — will encrypt on next unlock",
+                        generation_id,
+                    )
             except (RuntimeError, ValueError, OSError) as exc:
                 logger.warning("Auto-vault skipped for %s: %s", generation_id, exc)
