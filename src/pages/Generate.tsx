@@ -289,6 +289,17 @@ export function Generate() {
                 </Link>
               </p>
             )}
+            {selected?.avatar_path ? (
+              <p className="muted mt-2 text-xs">
+                Face Seed on — FaceID locks the face from the reference. Only body shape from Looks
+                is used in the text prompt (hair/ethnicity/age text are ignored).
+              </p>
+            ) : influencerId !== "" ? (
+              <p className="muted mt-2 text-xs text-[var(--danger)]">
+                No Face Seed — generation will invent a face from Looks text. Upload a reference on
+                the profile for identity lock.
+              </p>
+            ) : null}
           </div>
 
           <div className="field">

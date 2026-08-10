@@ -49,7 +49,8 @@ export function History() {
   });
 
   const regenerate = useMutation({
-    mutationFn: (id: number) => api.regenerate(id),
+    // Always face-lock on Library regenerate when a Face Seed exists (server also defaults).
+    mutationFn: (id: number) => api.regenerate(id, { identity_explore: false }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["generations"] }),
   });
 

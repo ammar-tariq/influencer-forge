@@ -32,6 +32,14 @@
 
 ## Prompt override contract
 
+## Face Seed vs looks sliders
+
+When a Face Seed / base portrait is set and the job is **not** identity-explore (Create post, Library regenerate):
+
+- ComfyUI runs **FaceID** (or img2img fallback) with the reference image.
+- Text looks prompt is **body sliders only** — age, ethnicity, nationality, hair, eyes, and style text are omitted so they cannot invent a different person.
+- Identity-explore (wizard / “try faces”) skips the reference on purpose.
+
 Clothing and identity are resolved on the orchestrator (`prompt_layers.resolve_prompt_layers`) before LLM expand / ComfyUI:
 
 | Priority | Clothing source |

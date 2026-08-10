@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Face Seed create/regenerate: looks text is body-only (no ethnicity/hair/age fighting the reference); Library regenerate defaults to face-lock.
 - Video: FaceID on by default at 12×384×640 (identity/gender); longer ~2s clip; don’t inject nude over clothed NSFW; queue “processing” only while a job runs; video autoplay muted.
 - Video playback: require real `.mp4` (don’t force `<video>` on stub PNGs); serve `/media` with `video/mp4`; clear error when VHS lacks ffmpeg.
 - AnimateDiff Gen2 video workflow: FaceID on checkpoint `MODEL`, then `ADE_UseEvolvedSampling` (fixes M_MODELS vs MODEL 400).

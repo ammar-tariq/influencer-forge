@@ -969,11 +969,21 @@ async def regenerate(
     parent = await db.fetchone("SELECT * FROM generations WHERE id = ?", (generation_id,))
     if not parent:
         raise HTTPException(404, "Not found")
-    explore = (
-        bool(identity_explore)
-        if identity_explore is not None
-        else bool(parent.get("identity_explore"))
+    influencer = await db.fetchone(
+        "SELECT * FROM influencers WHERE id = ?",
+        (parent["influencer_id"],),
     )
+    looks = None
+    if influencer:
+        looks = await db.fetchone("SELECT * FROM looks WHERE id = ?", (influencer["looks_id"],))
+    has_face = resolve_face_lock_path(looks) is not None
+    # With a Face Seed, regenerate locks identity unless caller explicitly asks to explore.
+    if identity_explore is not None:
+        explore = bool(identity_explore)
+    elif has_face:
+        explore = False
+    else:
+        explore = bool(parent.get("identity_explore"))
     # Re-resolve via create path so wardrobe / explore rules stay consistent.
     child = await _enqueue_generation(
         GenerationCreate(
@@ -990,6 +1000,7 @@ async def regenerate(
             llm_used=str(parent["llm_used"] or "template"),
             require_real=require_real,
             identity_explore=explore,
+            audio_path=parent.get("audio_path"),
         ),
         seed=None,
     )

@@ -224,13 +224,47 @@ def build_looks_prompt(
 ) -> str:
     """Build looks tokens for the prompt.
 
-    When face_locked, omit hair/eyes/style text — the reference image is the source
-    of truth. Wizard fields like \"Red Bob\" otherwise fight a curly lock photo.
-    Nationality stays even when locked so body/scene cues (e.g. Russian, Chinese) remain.
+    When face_locked (Face Seed / base portrait selected), the reference image owns
+    face, hair, eyes, ethnicity, nationality, and age appearance. Only **body**
+    slider tokens stay in the text prompt so SDXL does not invent a different person.
 
-    Under 18: use girl/boy phrasing, keep height, drop adult breast/hip/butt tokens,
-    and add explicit age-accurate proportion cues so SDXL does not invent an adult body.
+    Under 18 (unlocked): use girl/boy phrasing, keep height, drop adult breast/hip/butt
+    tokens, and add age-accurate proportion cues.
     """
+    raw_body = body or {}
+    youth = age is not None and age < 18
+
+    # Face Seed wins: body shape only — no age/ethnicity/hair/eyes/style text.
+    if face_locked:
+        parts: list[str | None] = []
+        if youth:
+            body = _normalize_youth_body(raw_body, age)
+            for cue in _age_body_cues(age, raw_body.get("height")):
+                parts.append(cue)
+        else:
+            body = dict(raw_body)
+        body_order = (
+            "skin_tone",
+            "height",
+            "body_type",
+            "breast_size",
+            "chest",
+            "waist",
+            "hips",
+            "butt_size",
+            "muscle_tone",
+        )
+        for key in body_order:
+            if youth and key == "height":
+                continue
+            val = body.get(key)
+            if not val:
+                continue
+            if str(val).strip().lower() in {"not applicable", "n/a", "none", "-"}:
+                continue
+            parts.append(f"{key.replace('_', ' ')}: {val}")
+        return ", ".join(p for p in parts if p)
+
     person = gender_phrase(gender, age)
     nationality_token = None
     if nationality and str(nationality).strip():
@@ -240,51 +274,33 @@ def build_looks_prompt(
         age_token = f"{age}-year-old {person}"
     else:
         age_token = person
-    parts: list[str | None] = [
+    parts = [
         age_token,
         nationality_token,
         ethnicity,
+        f"{hair_color} {hair_style} hair" if hair_color or hair_style else None,
+        f"{eye_color} eyes" if eye_color else None,
     ]
-    if not face_locked:
-        parts.append(f"{hair_color} {hair_style} hair" if hair_color or hair_style else None)
-        parts.append(f"{eye_color} eyes" if eye_color else None)
 
-    raw_body = body or {}
-    youth = age is not None and age < 18
     if youth:
         body = _normalize_youth_body(raw_body, age)
-        # Height is stated in age cues — avoid duplicating a bare height line.
         for cue in _age_body_cues(age, raw_body.get("height")):
             parts.append(cue)
     else:
         body = dict(raw_body)
 
-    if face_locked:
-        # Shape only — skip noisy tags (body_hair, long muscle essays) that mush quality.
-        body_order = (
-            "skin_tone",
-            "height",
-            "body_type",
-            "breast_size",
-            "chest",
-            "waist",
-            "hips",
-            "butt_size",
-            "muscle_tone",
-        )
-    else:
-        body_order = (
-            "skin_tone",
-            "height",
-            "body_type",
-            "breast_size",
-            "chest",
-            "waist",
-            "hips",
-            "butt_size",
-            "muscle_tone",
-            "body_hair",
-        )
+    body_order = (
+        "skin_tone",
+        "height",
+        "body_type",
+        "breast_size",
+        "chest",
+        "waist",
+        "hips",
+        "butt_size",
+        "muscle_tone",
+        "body_hair",
+    )
     for key in body_order:
         if youth and key == "height":
             continue  # already in age/height cues
@@ -296,14 +312,10 @@ def build_looks_prompt(
             continue
         label = key.replace("_", " ")
         parts.append(f"{label}: {val}")
-    if not face_locked:
-        for key, val in body.items():
-            if key in body_order or not val:
-                continue
-            parts.append(f"{key.replace('_', ' ')}: {val}")
-
-    if face_locked:
-        return ", ".join(p for p in parts if p)
+    for key, val in body.items():
+        if key in body_order or not val:
+            continue
+        parts.append(f"{key.replace('_', ' ')}: {val}")
 
     if for_nsfw:
         parts.append("same consistent face and body")

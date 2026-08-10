@@ -316,11 +316,12 @@ def test_youth_looks_keep_height_drop_adult_body() -> None:
     assert "large breasts" in neg
 
 
-def test_face_locked_looks_omit_hair_text() -> None:
-    """Wizard 'Red Bob' must not override a curly lock photo."""
+def test_face_locked_looks_body_only() -> None:
+    """Face Seed owns face/hair/ethnicity — text keeps body sliders only."""
     locked = build_looks_prompt(
         age=30,
         ethnicity="Mixed / Multiracial",
+        nationality="Pakistani",
         hair_color="Red",
         hair_style="Bob",
         eye_color="Green",
@@ -333,8 +334,12 @@ def test_face_locked_looks_omit_hair_text() -> None:
     assert "Green" not in locked
     assert "Sporty" not in locked
     assert "Hairy" not in locked
+    assert "Pakistani" not in locked
+    assert "Mixed" not in locked
+    assert "30-year-old" not in locked
+    assert "woman" not in locked
     assert "Fit" in locked
-    assert "30-year-old" in locked
+    assert "Very large" in locked
 
 
 def test_prompt_implies_nsfw() -> None:
