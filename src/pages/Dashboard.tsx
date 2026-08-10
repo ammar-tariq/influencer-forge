@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
+import { ReadinessChecklist } from "../components/common/ReadinessChecklist";
 
 export function Dashboard() {
   const influencers = useQuery({ queryKey: ["influencers"], queryFn: api.listInfluencers });
@@ -18,8 +19,12 @@ export function Dashboard() {
     <div className="space-y-6">
       <header>
         <h1 className="text-3xl tracking-tight">Studio</h1>
-        <p className="muted mt-1">Create influencers, generate content, stay on schedule.</p>
+        <p className="muted mt-1">
+          CRUD is ready now. Real AI images start when the checklist below is green.
+        </p>
       </header>
+
+      <ReadinessChecklist />
 
       {!influencers.data?.length ? (
         <div className="panel">

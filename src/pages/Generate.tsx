@@ -2,17 +2,20 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
 import { useQueue } from "../hooks/useQueue";
+import { ReadinessChecklist } from "../components/common/ReadinessChecklist";
 
 export function Generate() {
   const qc = useQueryClient();
   const influencers = useQuery({ queryKey: ["influencers"], queryFn: api.listInfluencers });
   const wardrobe = useQuery({ queryKey: ["wardrobe"], queryFn: api.listWardrobe });
+  const readiness = useQuery({ queryKey: ["readiness"], queryFn: api.readiness, refetchInterval: 5000 });
   const queue = useQueue();
   const [influencerId, setInfluencerId] = useState<number | "">("");
   const [prompt, setPrompt] = useState("golden hour portrait outdoors");
   const [aspect, setAspect] = useState<"9:16" | "16:9" | "1:1">("9:16");
   const [workflow, setWorkflow] = useState<"image" | "video">("image");
   const [wardrobeId, setWardrobeId] = useState<number | "">("");
+  const [requireReal, setRequireReal] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   const mutate = useMutation({
@@ -23,23 +26,34 @@ export function Generate() {
         aspect_ratio: aspect,
         workflow_type: workflow,
         wardrobe_item_id: wardrobeId === "" ? undefined : Number(wardrobeId),
+        require_real: requireReal,
       }),
     onSuccess: (gen) => {
-      setMessage(`Queued generation #${gen.id}`);
+      setMessage(
+        `Queued generation #${gen.id} (${requireReal ? "real-only" : "stub allowed if needed"})`,
+      );
       qc.invalidateQueries({ queryKey: ["generations"] });
       qc.invalidateQueries({ queryKey: ["queue"] });
     },
     onError: (err: Error) => setMessage(err.message),
   });
 
+  const mode = readiness.data?.mode ?? "stub";
+
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <header>
         <h1 className="text-3xl tracking-tight">Generate</h1>
         <p className="muted mt-1">
-          Queue {queue.data?.pending ?? 0} pending · {queue.data?.processing ?? 0} processing
+          Queue {queue.data?.pending ?? 0} pending · {queue.data?.processing ?? 0} processing ·{" "}
+          <span className={mode === "real" ? "text-[var(--accent)]" : "text-[var(--accent-2)]"}>
+            {mode} mode
+          </span>
         </p>
       </header>
+
+      {mode === "stub" && <ReadinessChecklist />}
+
       <div className="panel">
         <div className="field">
           <label>Influencer</label>
@@ -88,6 +102,14 @@ export function Generate() {
             ))}
           </select>
         </div>
+        <label className="mb-4 flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={requireReal}
+            onChange={(e) => setRequireReal(e.target.checked)}
+          />
+          Require real ComfyUI output (fail instead of placeholder)
+        </label>
         {message && <p className="mb-3 text-sm text-[var(--accent)]">{message}</p>}
         <button
           className="btn"

@@ -96,6 +96,8 @@ class GenerationCreate(BaseModel):
     is_nsfw: bool = False
     model_used: str = "stub"
     llm_used: str = "template"
+    # When true, fail the job instead of writing a Pillow placeholder.
+    require_real: bool = False
 
 
 class Generation(BaseModel):

@@ -21,6 +21,7 @@ class QueueWorker:
         self._task: asyncio.Task[None] | None = None
         self._paused = False
         self._wake = asyncio.Event()
+        self._require_real: dict[int, bool] = {}
 
     @property
     def paused(self) -> bool:
@@ -54,11 +55,12 @@ class QueueWorker:
         if self._task is None or self._task.done():
             self._task = asyncio.create_task(self._run())
 
-    async def enqueue(self, generation_id: int) -> None:
+    async def enqueue(self, generation_id: int, *, require_real: bool = False) -> None:
         await self.db.execute(
             "UPDATE generations SET status = 'queued' WHERE id = ?",
             (generation_id,),
         )
+        self._require_real[generation_id] = require_real
         self._queue.append(generation_id)
         self._wake.set()
         if self._task is None or self._task.done():
@@ -83,6 +85,8 @@ class QueueWorker:
                     """,
                     (str(exc), generation_id),
                 )
+            finally:
+                self._require_real.pop(generation_id, None)
 
     async def _process(self, generation_id: int) -> None:
         row = await self.db.fetchone("SELECT * FROM generations WHERE id = ?", (generation_id,))
@@ -105,16 +109,23 @@ class QueueWorker:
                 (influencer["personality_id"],),
             )
         looks_prompt = (looks or {}).get("base_prompt") or "portrait"
+        wardrobe_keywords = None
+        # Wardrobe keywords already may be baked into expanded_prompt at create time.
         expanded = expand_prompt(
             row["user_prompt"],
             influencer_name=(influencer or {}).get("name") or "Influencer",
             looks_prompt=str(looks_prompt),
+            wardrobe_keywords=wardrobe_keywords,
             system_prompt=(personality or {}).get("system_prompt"),
         )
+        # Prefer the expanded prompt stored at enqueue if richer.
+        if row.get("expanded_prompt") and len(str(row["expanded_prompt"])) > len(expanded):
+            expanded = str(row["expanded_prompt"])
         await self.db.execute(
             "UPDATE generations SET expanded_prompt = ? WHERE id = ?",
             (expanded, generation_id),
         )
+        require_real = self._require_real.get(generation_id, False)
         out, thumb, seed, model = await self.comfy.generate(
             generation_id=generation_id,
             prompt=expanded,
@@ -122,6 +133,7 @@ class QueueWorker:
             seed=row["seed"],
             workflow_type=row["workflow_type"],
             face_reference=(looks or {}).get("reference_image_path"),
+            allow_stub=not require_real,
         )
         await self.db.execute(
             """

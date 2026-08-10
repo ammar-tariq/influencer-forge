@@ -37,6 +37,21 @@ export const api = {
       root: string;
       process_running: boolean;
     }>("/api/comfyui/status"),
+  readiness: () =>
+    request<{
+      mode: "real" | "stub";
+      real_ready: boolean;
+      allow_stub_fallback: boolean;
+      summary: string;
+      checklist: Array<{
+        id: string;
+        label: string;
+        ok: boolean;
+        detail: string;
+        fix: string;
+      }>;
+      checkpoints: string[];
+    }>("/api/readiness"),
   queue: () => request<QueueStatus>("/api/queue"),
   pauseQueue: () => request("/api/queue/pause", { method: "POST" }),
   resumeQueue: () => request("/api/queue/resume", { method: "POST" }),
@@ -84,6 +99,7 @@ export const api = {
     seed?: number;
     wardrobe_item_id?: number;
     is_nsfw?: boolean;
+    require_real?: boolean;
   }) => request<Generation>("/api/generations", { method: "POST", body: JSON.stringify(body) }),
   regenerate: (id: number) =>
     request<Generation>(`/api/generations/${id}/regenerate`, { method: "POST" }),

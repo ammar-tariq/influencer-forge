@@ -89,6 +89,8 @@ class ComfyUIClient:
         width: int,
         height: int,
         negative: str = "blurry, low quality, deformed",
+        checkpoint_name: str | None = None,
+        face_reference: str | None = None,
     ) -> dict[str, Any]:
         prompt = copy.deepcopy(bundle.get("prompt") or {})
         meta = bundle.get("meta") or {}
@@ -96,8 +98,12 @@ class ComfyUIClient:
         neg_node = str(meta.get("negative_node", "7"))
         seed_node = str(meta.get("seed_node", "3"))
         size_node = str(meta.get("size_node", "5"))
+        ckpt_node = str(meta.get("checkpoint_node", "4"))
         if pos_node in prompt:
-            prompt[pos_node].setdefault("inputs", {})["text"] = positive
+            text = positive
+            if face_reference:
+                text = f"{positive}, consistent face reference:{Path(face_reference).name}"
+            prompt[pos_node].setdefault("inputs", {})["text"] = text
         if neg_node in prompt:
             prompt[neg_node].setdefault("inputs", {})["text"] = negative
         if seed_node in prompt:
@@ -105,6 +111,8 @@ class ComfyUIClient:
         if size_node in prompt:
             prompt[size_node].setdefault("inputs", {})["width"] = width
             prompt[size_node].setdefault("inputs", {})["height"] = height
+        if checkpoint_name and ckpt_node in prompt:
+            prompt[ckpt_node].setdefault("inputs", {})["ckpt_name"] = checkpoint_name
         return prompt
 
     async def queue_prompt(self, prompt: dict[str, Any]) -> str:
@@ -158,17 +166,29 @@ class ComfyUIClient:
         aspect_ratio: str,
         seed: int,
         workflow_type: str,
+        face_reference: str | None = None,
     ) -> tuple[Path, Path, int, str]:
+        from forge_python.readiness import find_checkpoints
+
         workflow_name = "video_animate.json" if workflow_type == "video" else "image_faceid.json"
-        if workflow_type == "video" and (settings.workflows_dir / "lip_sync.json").exists():
-            # Prefer AnimateDiff bundle; lip_sync is a separate talking-head path.
-            pass
         bundle = self.load_workflow_bundle(workflow_name)
         if bundle.get("stub") and not bundle.get("prompt"):
             raise RuntimeError("Workflow is stub-only")
+        checkpoints = find_checkpoints()
+        if not checkpoints:
+            raise RuntimeError(
+                "No diffusion checkpoint found. Place an SDXL .safetensors under "
+                f"{settings.comfyui_root / 'models' / 'checkpoints'}"
+            )
         width, height = ASPECT_SIZES.get(aspect_ratio, ASPECT_SIZES["9:16"])
         prompt = self.inject_prompt(
-            bundle, positive=prompt_text, seed=seed, width=width, height=height
+            bundle,
+            positive=prompt_text,
+            seed=seed,
+            width=width,
+            height=height,
+            checkpoint_name=checkpoints[0].name,
+            face_reference=face_reference,
         )
         prompt_id = await self.queue_prompt(prompt)
         images = await self.wait_for_images(prompt_id)
@@ -194,12 +214,15 @@ class ComfyUIClient:
         seed: int | None,
         workflow_type: str,
         face_reference: str | None = None,
+        allow_stub: bool | None = None,
     ) -> tuple[Path, Path, int, str]:
         """Return output_path, thumbnail_path, seed, model_used."""
         used_seed = seed if seed is not None else int(uuid.uuid4().int % 2_147_483_647)
+        stub_ok = settings.allow_stub_fallback if allow_stub is None else allow_stub
         if face_reference:
             logger.info("Face reference attached: %s", face_reference)
 
+        comfy_error: str | None = None
         if settings.enable_comfyui:
             self.start_process()
             for _ in range(20):
@@ -214,13 +237,30 @@ class ComfyUIClient:
                         aspect_ratio=aspect_ratio,
                         seed=used_seed,
                         workflow_type=workflow_type,
+                        face_reference=face_reference,
                     )
-                except (httpx.HTTPError, OSError, TimeoutError, RuntimeError, KeyError, ValueError):
-                    logger.exception("ComfyUI generation failed; using stub fallback")
+                except (httpx.HTTPError, OSError, TimeoutError, RuntimeError, KeyError, ValueError) as exc:
+                    logger.exception("ComfyUI generation failed")
+                    comfy_error = str(exc)
+            else:
+                comfy_error = (
+                    f"ComfyUI not healthy at {self.base_url}. "
+                    f"Install source at {settings.comfyui_root} and ensure port "
+                    f"{settings.comfyui_port} is free."
+                )
+        else:
+            comfy_error = "IFORGE_ENABLE_COMFYUI is not set (stub/dev mode)."
+
+        if not stub_ok:
+            raise RuntimeError(
+                "Real generation unavailable: "
+                f"{comfy_error} Set IFORGE_ALLOW_STUB_FALLBACK=1 to allow placeholders, "
+                "or finish the readiness checklist at GET /api/readiness."
+            )
 
         out, thumb, stub_seed = await generate_stub_image(
             generation_id=generation_id,
-            prompt=prompt,
+            prompt=prompt + (f" [stub: {comfy_error}]" if comfy_error else ""),
             aspect_ratio=aspect_ratio,
             seed=used_seed,
             workflow_type=workflow_type,

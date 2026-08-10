@@ -35,6 +35,8 @@ class Settings:
         )
         self.enable_comfyui = os.environ.get("IFORGE_ENABLE_COMFYUI", "0") == "1"
         self.enable_model_downloads = os.environ.get("IFORGE_ENABLE_MODEL_DOWNLOADS", "0") == "1"
+        # When false, generation fails loudly instead of writing Pillow placeholders.
+        self.allow_stub_fallback = os.environ.get("IFORGE_ALLOW_STUB_FALLBACK", "1") == "1"
         self.db_path = self.data_dir / "data.db"
         self.media_dir = self.data_dir / "media"
         self.generations_dir = self.media_dir / "generations"

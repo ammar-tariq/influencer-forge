@@ -39,3 +39,10 @@ models/
 # Tauri generated
 src-tauri/gen/
 src-tauri/icons/henry@2x.png
+
+# Local AI runtimes / weights (never commit)
+src-tauri/resources/comfyui/ComfyUI/
+**/*.safetensors
+**/*.ckpt
+**/*.gguf
+

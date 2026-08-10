@@ -48,6 +48,7 @@ from forge_python.models import (
 )
 from forge_python.post_processing import process_image
 from forge_python.queue_worker import QueueWorker
+from forge_python.readiness import collect_readiness
 from forge_python.scheduler import ScheduleService
 from forge_python.system_monitor import collect_stats
 from forge_python.vault import VaultService
@@ -134,6 +135,12 @@ async def comfyui_status() -> dict[str, Any]:
 
         return await ComfyUIClient().status()
     return await queue.comfy.status()
+
+
+@app.get("/api/readiness")
+async def readiness() -> dict[str, Any]:
+    comfy = queue.comfy if queue is not None else None
+    return await collect_readiness(comfy)
 
 
 @app.get("/api/queue", response_model=QueueStatus)
@@ -429,14 +436,14 @@ async def create_generation(body: GenerationCreate) -> Generation:
     )
     gid = cur.lastrowid
     assert gid is not None
-    await _require_queue().enqueue(int(gid))
+    await _require_queue().enqueue(int(gid), require_real=body.require_real)
     row = await db.fetchone("SELECT * FROM generations WHERE id = ?", (gid,))
     assert row
     return Generation(**row)
 
 
 @app.post("/api/generations/{generation_id}/regenerate", response_model=Generation)
-async def regenerate(generation_id: int) -> Generation:
+async def regenerate(generation_id: int, require_real: bool = False) -> Generation:
     parent = await db.fetchone("SELECT * FROM generations WHERE id = ?", (generation_id,))
     if not parent:
         raise HTTPException(404, "Not found")
@@ -465,7 +472,7 @@ async def regenerate(generation_id: int) -> Generation:
     )
     gid = cur.lastrowid
     assert gid is not None
-    await _require_queue().enqueue(int(gid))
+    await _require_queue().enqueue(int(gid), require_real=require_real)
     row = await db.fetchone("SELECT * FROM generations WHERE id = ?", (gid,))
     assert row
     return Generation(**row)
