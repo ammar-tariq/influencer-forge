@@ -22,3 +22,11 @@
 ## GPU note
 
 SDXL needs a capable GPU (or a slow CPU run). Without hardware, readiness may be green but jobs will be slow or OOM — that is a runtime issue, not CRUD.
+
+## Apple Silicon
+
+Ignore `comfy-aimdo unsupported operating system: Darwin` — that is NVIDIA-only.
+A healthy Mac log includes `Device: mps` and `To see the GUI go to: http://127.0.0.1:8188`.
+
+Existing single-file checkpoints (e.g. `/Volumes/external/hfModels/RealVisXL_V5.0/…`) can be symlinked into
+`ComfyUI/models/checkpoints/` or discovered via `IFORGE_EXTRA_MODEL_DIRS`.

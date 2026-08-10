@@ -37,3 +37,26 @@ npm run tauri dev
 
 Uploading a Face Seed stores a local fingerprint today and annotates the prompt.
 Full InstantID/IP-Adapter node wiring is the next milestone after SDXL txt2img works.
+
+## Apple Silicon / macOS notes
+
+These log lines are **normal and harmless** on Mac:
+
+```text
+[WARNING] Could not autodetect AIMDO implementation, assuming Nvidia
+[INFO] comfy-aimdo unsupported operating system: Darwin
+```
+
+AIMDO is a Windows/Linux NVIDIA path. On Apple, ComfyUI should report:
+
+```text
+Device: mps
+To see the GUI go to: http://127.0.0.1:8188
+```
+
+Start manually if needed:
+
+```bash
+cd src-tauri/resources/comfyui/ComfyUI
+.venv/bin/python main.py --listen 127.0.0.1 --port 8188 --force-fp16
+```
