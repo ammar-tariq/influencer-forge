@@ -1,22 +1,26 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
+import { SCHEDULE_FREQUENCIES } from "../constants/options";
 
 export function Scheduler() {
   const qc = useQueryClient();
   const influencers = useQuery({ queryKey: ["influencers"], queryFn: api.listInfluencers });
   const schedules = useQuery({ queryKey: ["schedules"], queryFn: api.listSchedules });
   const [influencerId, setInfluencerId] = useState<number | "">("");
-  const [time, setTime] = useState("09:00:00");
+  const [time, setTime] = useState("09:00");
+  const [frequency, setFrequency] = useState("daily");
+  const [cron, setCron] = useState("");
   const [template, setTemplate] = useState("Good morning! Today I'm wearing {wardrobe} in a {scene}.");
 
   const create = useMutation({
     mutationFn: () =>
       api.createSchedule({
         influencer_id: Number(influencerId),
-        schedule_time: time,
-        frequency: "daily",
+        schedule_time: time.length === 5 ? `${time}:00` : time,
+        frequency,
         prompt_template: template,
+        ...(frequency === "custom" && cron.trim() ? { cron_expression: cron.trim() } : {}),
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["schedules"] }),
   });
@@ -25,7 +29,7 @@ export function Scheduler() {
     <div className="space-y-6">
       <header>
         <h1 className="text-3xl tracking-tight">Scheduler</h1>
-        <p className="muted mt-1">Daily reminders to generate. Calendar IDs can be attached later.</p>
+        <p className="muted mt-1">Reminders to generate. Calendar sync IDs can be attached later.</p>
       </header>
       <div className="panel">
         <div className="field">
@@ -41,8 +45,28 @@ export function Scheduler() {
         </div>
         <div className="field">
           <label>Time</label>
-          <input value={time} onChange={(e) => setTime(e.target.value)} />
+          <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
         </div>
+        <div className="field">
+          <label>Frequency</label>
+          <select value={frequency} onChange={(e) => setFrequency(e.target.value)}>
+            {SCHEDULE_FREQUENCIES.map((f) => (
+              <option key={f.value} value={f.value}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        {frequency === "custom" && (
+          <div className="field">
+            <label>Custom cron / notes</label>
+            <input
+              value={cron}
+              onChange={(e) => setCron(e.target.value)}
+              placeholder="e.g. 0 9 * * 1-5 (weekdays 9:00)"
+            />
+          </div>
+        )}
         <div className="field">
           <label>Prompt template</label>
           <textarea rows={3} value={template} onChange={(e) => setTemplate(e.target.value)} />

@@ -148,7 +148,7 @@ Clothing/outfits that can be applied to influencers.
 | `id` | INTEGER | PRIMARY KEY AUTOINCREMENT | |
 | `name` | TEXT | NOT NULL | e.g., "Casual Hoodie" |
 | `description` | TEXT | | Detailed description |
-| `category` | TEXT | NOT NULL | "Top", "Bottom", "Full Outfit", "Accessory" |
+| `category` | TEXT | NOT NULL | UI presets: Top, Bottom, Full Outfit, Accessory, Footwear, Outerwear, Swimwear, Lingerie, or custom Other |
 | `prompt_keywords` | TEXT | NOT NULL | "gray oversized hoodie, relaxed fit" |
 | `preview_image` | TEXT | | Path to thumbnail |
 | `is_shared` | BOOLEAN | DEFAULT 0 | If TRUE, appears in ALL influencers' wardrobes |

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
 import { useQueue } from "../hooks/useQueue";
 import { ReadinessChecklist } from "../components/common/ReadinessChecklist";
+import { ASPECT_RATIOS, WORKFLOW_TYPES } from "../constants/options";
 
 export function Generate() {
   const qc = useQueryClient();
@@ -76,16 +77,21 @@ export function Generate() {
         <div className="field">
           <label>Type</label>
           <select value={workflow} onChange={(e) => setWorkflow(e.target.value as "image" | "video")}>
-            <option value="image">Image</option>
-            <option value="video">Video (AnimateDiff path)</option>
+            {WORKFLOW_TYPES.map((w) => (
+              <option key={w.value} value={w.value}>
+                {w.label}
+              </option>
+            ))}
           </select>
         </div>
         <div className="field">
           <label>Aspect ratio</label>
           <select value={aspect} onChange={(e) => setAspect(e.target.value as typeof aspect)}>
-            <option value="9:16">9:16</option>
-            <option value="16:9">16:9</option>
-            <option value="1:1">1:1</option>
+            {ASPECT_RATIOS.map((a) => (
+              <option key={a.value} value={a.value}>
+                {a.label}
+              </option>
+            ))}
           </select>
         </div>
         <div className="field">

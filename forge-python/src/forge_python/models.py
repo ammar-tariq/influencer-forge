@@ -76,7 +76,7 @@ class Influencer(BaseModel):
 class WardrobeCreate(BaseModel):
     name: str
     description: str | None = None
-    category: Literal["Top", "Bottom", "Full Outfit", "Accessory"] = "Full Outfit"
+    category: str = "Full Outfit"
     prompt_keywords: str
     preview_image: str | None = None
     is_shared: bool = False

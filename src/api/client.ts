@@ -128,6 +128,7 @@ export const api = {
     schedule_time: string;
     frequency: string;
     prompt_template: string;
+    cron_expression?: string;
   }) => request<Schedule>("/api/schedules", { method: "POST", body: JSON.stringify(body) }),
   reminders: () => request<{ reminders: unknown[] }>("/api/schedules/reminders"),
 

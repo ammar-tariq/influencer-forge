@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
+import { SelectWithOther } from "../components/common/SelectWithOther";
+import { OTHER, WARDROBE_CATEGORIES, resolveSelectValue } from "../constants/options";
 
 export function Wardrobe() {
   const qc = useQueryClient();
@@ -8,21 +10,31 @@ export function Wardrobe() {
   const influencers = useQuery({ queryKey: ["influencers"], queryFn: api.listInfluencers });
   const [name, setName] = useState("");
   const [keywords, setKeywords] = useState("");
-  const [category, setCategory] = useState("Full Outfit");
+  const [category, setCategory] = useState<string>("Full Outfit");
+  const [categoryOther, setCategoryOther] = useState("");
   const [assignInf, setAssignInf] = useState<number | "">("");
   const [assignItem, setAssignItem] = useState<number | "">("");
+
+  const resolvedCategory = resolveSelectValue(category, categoryOther);
+  const canCreate =
+    Boolean(name.trim()) &&
+    Boolean(keywords.trim()) &&
+    Boolean(resolvedCategory) &&
+    !(category === OTHER && !categoryOther.trim());
 
   const create = useMutation({
     mutationFn: () =>
       api.createWardrobe({
-        name,
-        category,
-        prompt_keywords: keywords,
+        name: name.trim(),
+        category: resolvedCategory,
+        prompt_keywords: keywords.trim(),
         is_shared: false,
       }),
     onSuccess: () => {
       setName("");
       setKeywords("");
+      setCategory("Full Outfit");
+      setCategoryOther("");
       qc.invalidateQueries({ queryKey: ["wardrobe"] });
     },
   });
@@ -42,19 +54,24 @@ export function Wardrobe() {
           <label>Name</label>
           <input value={name} onChange={(e) => setName(e.target.value)} />
         </div>
-        <div className="field">
-          <label>Category</label>
-          <select value={category} onChange={(e) => setCategory(e.target.value)}>
-            {["Top", "Bottom", "Full Outfit", "Accessory"].map((c) => (
-              <option key={c}>{c}</option>
-            ))}
-          </select>
-        </div>
+        <SelectWithOther
+          label="Category"
+          options={WARDROBE_CATEGORIES}
+          value={category}
+          otherValue={categoryOther}
+          onChange={setCategory}
+          onOtherChange={setCategoryOther}
+          otherPlaceholder="e.g. Jewelry set"
+        />
         <div className="field">
           <label>Prompt keywords</label>
-          <input value={keywords} onChange={(e) => setKeywords(e.target.value)} />
+          <input
+            value={keywords}
+            onChange={(e) => setKeywords(e.target.value)}
+            placeholder="gray oversized hoodie, relaxed fit"
+          />
         </div>
-        <button className="btn" disabled={!name || !keywords} onClick={() => create.mutate()}>
+        <button className="btn" disabled={!canCreate} onClick={() => create.mutate()}>
           Add outfit
         </button>
       </div>
