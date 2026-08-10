@@ -16,6 +16,18 @@ import type {
 
 const BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8765";
 
+/** Bumped after full reset so reused /media/... filenames don't show ghost images. */
+let mediaEpoch = "0";
+
+export function setMediaEpoch(epoch: string | number | undefined | null) {
+  if (epoch == null || epoch === "") return;
+  mediaEpoch = String(epoch);
+}
+
+export function getMediaEpoch() {
+  return mediaEpoch;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
@@ -38,7 +50,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   base: BASE,
-  health: () => request<{ status: string; version: string }>("/api/health"),
+  health: async () => {
+    const h = await request<{ status: string; version: string; media_epoch?: string }>(
+      "/api/health",
+    );
+    if (h.media_epoch) setMediaEpoch(h.media_epoch);
+    return h;
+  },
   bootstrap: () => request<BootstrapStatus>("/api/bootstrap/status"),
   comfyStatus: () =>
     request<{
@@ -225,14 +243,19 @@ export const api = {
   listSettings: () => request<SettingItem[]>("/api/settings"),
   putSetting: (key: string, value: string) =>
     request<SettingItem>("/api/settings", { method: "PUT", body: JSON.stringify({ key, value }) }),
-  fullReset: (include_app_models = false) =>
-    request<{ status: string; data_dir: string; removed: Record<string, unknown> }>(
-      "/api/system/reset",
-      {
-        method: "POST",
-        body: JSON.stringify({ confirm: "RESET", include_app_models }),
-      },
-    ),
+  fullReset: async (include_app_models = false) => {
+    const res = await request<{
+      status: string;
+      data_dir: string;
+      removed: Record<string, unknown>;
+      media_epoch?: string;
+    }>("/api/system/reset", {
+      method: "POST",
+      body: JSON.stringify({ confirm: "RESET", include_app_models }),
+    });
+    setMediaEpoch(res.media_epoch ?? Date.now());
+    return res;
+  },
 
   listSchedules: () => request<Schedule[]>("/api/schedules"),
   createSchedule: (body: {
@@ -272,23 +295,32 @@ export function vaultRevealUrl(id: number): string {
  * Map absolute on-disk paths from the API to HTTP URLs served by the orchestrator.
  * Never use raw filesystem paths as <img src> in the webview.
  */
+function withMediaEpoch(url: string): string {
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}e=${encodeURIComponent(mediaEpoch)}`;
+}
+
 export function mediaUrl(path?: string | null): string | undefined {
   if (!path) return undefined;
   // Already an HTTP(S) URL
-  if (/^https?:\/\//i.test(path)) return path;
+  if (/^https?:\/\//i.test(path)) {
+    // Still bust our local media URLs after reset.
+    if (path.includes("/media/")) return withMediaEpoch(path);
+    return path;
+  }
   const normalized = path.replace(/\\/g, "/");
   const name = normalized.split("/").pop();
   if (!name) return undefined;
 
   if (normalized.includes("/uploads/") || name.startsWith("face_")) {
-    return `${BASE}/media/uploads/${encodeURIComponent(name)}`;
+    return withMediaEpoch(`${BASE}/media/uploads/${encodeURIComponent(name)}`);
   }
   if (
     normalized.includes("/thumbnails/") ||
     name.includes("_thumb") ||
     name.includes("_teaser")
   ) {
-    return `${BASE}/media/thumbnails/${encodeURIComponent(name)}`;
+    return withMediaEpoch(`${BASE}/media/thumbnails/${encodeURIComponent(name)}`);
   }
-  return `${BASE}/media/generations/${encodeURIComponent(name)}`;
+  return withMediaEpoch(`${BASE}/media/generations/${encodeURIComponent(name)}`);
 }

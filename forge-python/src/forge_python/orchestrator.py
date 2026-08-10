@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -127,12 +128,19 @@ def _require_schedules() -> ScheduleService:
 
 @app.get("/api/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
+    epoch = "0"
+    try:
+        epoch = (await db.get_setting("media_epoch")) or "0"
+    except Exception:
+        # DB may be mid-reset / not connected during early probes.
+        epoch = "0"
     return HealthResponse(
         status="ok",
         version=__version__,
         data_dir=str(settings.data_dir),
         api="influencerforge",
         features=["readiness", "reset", "comfyui", "influencer_detail"],
+        media_epoch=epoch,
     )
 
 
@@ -1070,6 +1078,10 @@ async def full_reset(body: ResetRequest) -> dict[str, Any]:
     report["queue_cleared"] = cleared
 
     await db.connect()
+    # Bust client/WKWebView caches that key on reused paths like /media/generations/1.png
+    media_epoch = str(int(time.time()))
+    await db.set_setting("media_epoch", media_epoch)
+    report["media_epoch"] = media_epoch
     vault = VaultService(db)
     queue = QueueWorker(db, vault=vault)
     schedules = ScheduleService(db)
@@ -1214,11 +1226,16 @@ async def reveal_vault_generation(generation_id: int) -> FileResponse:
         raise HTTPException(401, str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(404, str(exc)) from exc
-    return FileResponse(path, media_type="image/png")
+    return FileResponse(
+        path,
+        media_type="image/png",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 # Media — dynamic FileResponse so IFORGE_DATA_DIR / tests can retarget settings.media_dir
 _MEDIA_SUBDIRS = frozenset({"generations", "thumbnails", "uploads"})
+_NO_STORE = {"Cache-Control": "no-store"}
 
 
 @app.get("/media/{subdir}/{filename}")
@@ -1234,7 +1251,7 @@ async def serve_media(subdir: str, filename: str) -> FileResponse:
     root = settings.media_dir.resolve()
     if not str(path).startswith(str(root)) or not path.is_file():
         raise HTTPException(404, "File not found")
-    return FileResponse(path)
+    return FileResponse(path, headers=_NO_STORE)
 
 
 def main() -> None:

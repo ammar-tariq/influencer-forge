@@ -14,6 +14,8 @@ class HealthResponse(BaseModel):
     # Used by the Tauri shell to detect stale orchestrators that only expose /api/health.
     api: str = "influencerforge"
     features: list[str] = Field(default_factory=lambda: ["readiness", "reset", "comfyui"])
+    # Bumped on full reset so UI media URLs invalidate WKWebView/browser image caches.
+    media_epoch: str = "0"
 
 
 class BootstrapStatus(BaseModel):

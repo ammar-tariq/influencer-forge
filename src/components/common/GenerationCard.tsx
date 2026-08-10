@@ -25,6 +25,7 @@ export function GenerationCard({ generation: g, imagePath, onClick }: Props) {
           alt=""
           className="h-40 w-full rounded-xl object-cover"
           fallback={g.status === "completed" ? (isVideo ? "Video" : "No preview") : g.status}
+          cacheKey={g.completed_at ?? g.seed ?? g.id}
         />
         <StatusBadge
           status={g.status}

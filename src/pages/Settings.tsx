@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "../api/client";
+import { api, setMediaEpoch } from "../api/client";
 import { useSystemStats } from "../hooks/useSystemStats";
 
 function settingMap(items: { key: string; value: string }[] | undefined) {
@@ -45,6 +45,7 @@ export function Settings() {
       setConfirmText("");
       setArmed(false);
       setResetMessage(`Reset complete. Data dir: ${res.data_dir}`);
+      setMediaEpoch(res.media_epoch ?? Date.now());
       // Drop stale lists so Studio/Library don't keep showing wiped influencers.
       qc.clear();
       await qc.invalidateQueries();
