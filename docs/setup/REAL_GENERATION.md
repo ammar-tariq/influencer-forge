@@ -19,6 +19,17 @@
 - Generate page toggle **Require real ComfyUI output** sets `require_real: true` and fails the job instead of painting a fake PNG.
 - Set `IFORGE_ALLOW_STUB_FALLBACK=0` globally to force real-only.
 
+## Explicit / NSFW generations
+
+For Adult or **18+** influencers:
+
+1. Open **Generate**, select the influencer (NSFW mode defaults on for `18+`).
+2. Enable **NSFW / explicit mode** (or use words like `topless` / `nude` in the prompt).
+3. Prefer waist-up / full-body phrasing — face-only “portrait” framing hides the body.
+4. Leave Wardrobe empty (skipped automatically in NSFW mode).
+
+The pipeline then uses adult framing + clothing negatives. RealVisXL can still refuse some scenes; stronger wording and re-rolls help. Family/Teen ratings block NSFW.
+
 ## Viewing images in the app
 
 Orchestrator serves files from the app data `media/` folder at `http://127.0.0.1:8765/media/...`:

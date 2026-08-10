@@ -21,6 +21,9 @@ from forge_python.face_seed import extract_face_embedding
 from forge_python.llm_manager import (
     build_looks_prompt,
     build_system_prompt,
+    expand_prompt,
+    prompt_implies_nsfw,
+    resolve_negative_prompt,
     smart_daily_suggestions,
 )
 from forge_python.model_downloader import ModelDownloader
@@ -327,7 +330,13 @@ async def _resolve_avatar_path(influencer_id: int, looks_id: int) -> str | None:
     return None
 
 
-def _influencer_from_row(r: dict[str, Any], avatar_path: str | None = None) -> Influencer:
+def _influencer_from_row(
+    r: dict[str, Any],
+    *,
+    avatar_path: str | None = None,
+    age_rating: str | None = None,
+    niche: str | None = None,
+) -> Influencer:
     return Influencer(
         id=r["id"],
         personality_id=r["personality_id"],
@@ -336,6 +345,8 @@ def _influencer_from_row(r: dict[str, Any], avatar_path: str | None = None) -> I
         is_active=bool(r["is_active"]),
         created_at=r.get("created_at"),
         avatar_path=avatar_path,
+        age_rating=age_rating,
+        niche=niche,
     )
 
 
@@ -346,7 +357,18 @@ async def list_influencers() -> list[Influencer]:
     out: list[Influencer] = []
     for r in rows:
         avatar = await _resolve_avatar_path(int(r["id"]), int(r["looks_id"]))
-        out.append(_influencer_from_row(r, avatar))
+        personality = await db.fetchone(
+            "SELECT age_rating, niche FROM personalities WHERE id = ?",
+            (r["personality_id"],),
+        )
+        out.append(
+            _influencer_from_row(
+                r,
+                avatar_path=avatar,
+                age_rating=(personality or {}).get("age_rating"),
+                niche=(personality or {}).get("niche"),
+            )
+        )
     return out
 
 
@@ -371,6 +393,8 @@ async def create_influencer(body: InfluencerCreate) -> Influencer:
         name=name,
         is_active=True,
         avatar_path=str(avatar) if avatar else None,
+        age_rating=personality.get("age_rating"),
+        niche=personality.get("niche"),
     )
 
 
@@ -454,23 +478,51 @@ async def create_generation(body: GenerationCreate) -> Generation:
     influencer = await db.fetchone("SELECT * FROM influencers WHERE id = ?", (body.influencer_id,))
     if not influencer:
         raise HTTPException(400, "Invalid influencer_id")
-    looks = await db.fetchone("SELECT * FROM looks WHERE id = ?", (influencer["looks_id"],))
-    expanded = (
-        f"{body.user_prompt}"
-        + (f", wearing {wardrobe_keywords}" if wardrobe_keywords else "")
-        + (f", {(looks or {}).get('base_prompt')}" if looks else "")
+    personality = await db.fetchone(
+        "SELECT * FROM personalities WHERE id = ?",
+        (influencer["personality_id"],),
     )
+    looks = await db.fetchone("SELECT * FROM looks WHERE id = ?", (influencer["looks_id"],))
+    age_rating = (personality or {}).get("age_rating") or "Family"
+    # Toggle or explicit prompt language → NSFW path (clothing negatives + adult framing).
+    # Age rating alone does not force NSFW so studio headshots stay SFW.
+    is_nsfw = bool(body.is_nsfw or prompt_implies_nsfw(body.user_prompt))
+    if is_nsfw and age_rating in ("Family", "Teen"):
+        raise HTTPException(
+            400,
+            "Explicit / NSFW generation requires an Adult or 18+ age rating on the influencer.",
+        )
+    looks_prompt = build_looks_prompt(
+        age=(looks or {}).get("age"),
+        ethnicity=(looks or {}).get("ethnicity"),
+        hair_color=(looks or {}).get("hair_color"),
+        hair_style=(looks or {}).get("hair_style"),
+        eye_color=(looks or {}).get("eye_color"),
+        style=(looks or {}).get("style"),
+        for_nsfw=is_nsfw,
+    )
+    expanded = expand_prompt(
+        body.user_prompt,
+        influencer_name=influencer["name"],
+        looks_prompt=looks_prompt or (looks or {}).get("base_prompt") or "",
+        wardrobe_keywords=None if is_nsfw else wardrobe_keywords,
+        system_prompt=(personality or {}).get("system_prompt"),
+        is_nsfw=is_nsfw,
+    )
+    negative = resolve_negative_prompt(is_nsfw=is_nsfw)
     cur = await db.execute(
         """
         INSERT INTO generations(
-            influencer_id, user_prompt, expanded_prompt, workflow_type, model_used, llm_used,
+            influencer_id, user_prompt, expanded_prompt, negative_prompt,
+            workflow_type, model_used, llm_used,
             aspect_ratio, seed, steps, cfg_scale, is_nsfw, status
-        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
         """,
         (
             body.influencer_id,
             body.user_prompt,
             expanded,
+            negative,
             body.workflow_type,
             body.model_used,
             body.llm_used,
@@ -478,7 +530,7 @@ async def create_generation(body: GenerationCreate) -> Generation:
             body.seed,
             body.steps,
             body.cfg_scale,
-            int(body.is_nsfw),
+            int(is_nsfw),
         ),
     )
     gid = cur.lastrowid

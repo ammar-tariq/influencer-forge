@@ -1,7 +1,13 @@
 import pytest
 
 from forge_python.config import settings
-from forge_python.llm_manager import build_looks_prompt, build_system_prompt, expand_prompt
+from forge_python.llm_manager import (
+    build_looks_prompt,
+    build_system_prompt,
+    expand_prompt,
+    prompt_implies_nsfw,
+    resolve_negative_prompt,
+)
 from forge_python.stub_generator import generate_stub_image
 
 
@@ -25,6 +31,41 @@ def test_build_prompts() -> None:
     )
     assert "morning coffee" in expanded
     assert "gray hoodie" in expanded
+
+
+def test_nsfw_expansion_puts_scene_first_and_drops_fashion_style() -> None:
+    looks = build_looks_prompt(
+        age=20,
+        ethnicity="Caucasian",
+        hair_color="Brown",
+        hair_style="Long straight",
+        eye_color="Brown",
+        style="Casual",
+        for_nsfw=True,
+    )
+    assert "Casual" not in looks
+    assert "portrait" not in looks.lower()
+    expanded = expand_prompt(
+        "Topless",
+        influencer_name="Natasha",
+        looks_prompt=looks,
+        wardrobe_keywords="hoodie",
+        is_nsfw=True,
+    )
+    assert expanded.startswith("Topless")
+    assert "nude" in expanded
+    assert "waist up" in expanded
+    assert "hoodie" not in expanded
+    assert "Casual style" not in expanded
+    neg = resolve_negative_prompt(is_nsfw=True)
+    assert "bra" in neg
+    assert "shirt" in neg
+
+
+def test_prompt_implies_nsfw() -> None:
+    assert prompt_implies_nsfw("Topless")
+    assert prompt_implies_nsfw("fully nude beach")
+    assert not prompt_implies_nsfw("golden hour portrait outdoors")
 
 
 @pytest.mark.asyncio

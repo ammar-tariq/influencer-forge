@@ -36,6 +36,8 @@ export interface Influencer {
   created_at?: string | null;
   /** Disk path; use mediaUrl() for <img src>. */
   avatar_path?: string | null;
+  age_rating?: string | null;
+  niche?: string | null;
 }
 
 export interface Generation {

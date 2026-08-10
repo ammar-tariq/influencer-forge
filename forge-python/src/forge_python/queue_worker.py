@@ -8,7 +8,11 @@ from collections import deque
 
 from forge_python.comfyui_client import ComfyUIClient
 from forge_python.db import Database
-from forge_python.llm_manager import expand_prompt
+from forge_python.llm_manager import (
+    build_looks_prompt,
+    expand_prompt,
+    resolve_negative_prompt,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -128,22 +132,37 @@ class QueueWorker:
                 "SELECT * FROM personalities WHERE id = ?",
                 (influencer["personality_id"],),
             )
-        looks_prompt = (looks or {}).get("base_prompt") or "portrait"
+        is_nsfw = bool(row.get("is_nsfw"))
+        looks_prompt = build_looks_prompt(
+            age=(looks or {}).get("age"),
+            ethnicity=(looks or {}).get("ethnicity"),
+            hair_color=(looks or {}).get("hair_color"),
+            hair_style=(looks or {}).get("hair_style"),
+            eye_color=(looks or {}).get("eye_color"),
+            style=(looks or {}).get("style"),
+            for_nsfw=is_nsfw,
+        ) or (looks or {}).get("base_prompt") or "adult woman"
+        # Wardrobe fights nude/explicit scenes — only apply when SFW.
         wardrobe_keywords = None
-        # Wardrobe keywords already may be baked into expanded_prompt at create time.
         expanded = expand_prompt(
             row["user_prompt"],
             influencer_name=(influencer or {}).get("name") or "Influencer",
             looks_prompt=str(looks_prompt),
             wardrobe_keywords=wardrobe_keywords,
             system_prompt=(personality or {}).get("system_prompt"),
+            is_nsfw=is_nsfw,
         )
-        # Prefer the expanded prompt stored at enqueue if richer.
-        if row.get("expanded_prompt") and len(str(row["expanded_prompt"])) > len(expanded):
-            expanded = str(row["expanded_prompt"])
+        negative = resolve_negative_prompt(
+            is_nsfw=is_nsfw,
+            custom=row.get("negative_prompt"),
+        )
         await self.db.execute(
-            "UPDATE generations SET expanded_prompt = ? WHERE id = ?",
-            (expanded, generation_id),
+            """
+            UPDATE generations
+            SET expanded_prompt = ?, negative_prompt = ?
+            WHERE id = ?
+            """,
+            (expanded, negative, generation_id),
         )
         require_real = self._require_real.get(generation_id, False)
         out, thumb, seed, model = await self.comfy.generate(
@@ -154,6 +173,7 @@ class QueueWorker:
             workflow_type=row["workflow_type"],
             face_reference=(looks or {}).get("reference_image_path"),
             allow_stub=not require_real,
+            negative=negative,
         )
         await self.db.execute(
             """

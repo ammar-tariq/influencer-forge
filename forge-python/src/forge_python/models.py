@@ -74,6 +74,8 @@ class Influencer(BaseModel):
     # Absolute disk path for the best available preview (portrait → face seed → latest gen).
     # Frontend maps this through mediaUrl() to /media/...
     avatar_path: str | None = None
+    age_rating: str | None = None
+    niche: str | None = None
 
 
 class WardrobeCreate(BaseModel):

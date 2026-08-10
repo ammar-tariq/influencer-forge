@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
@@ -6,6 +6,10 @@ import { MediaImage } from "../components/common/MediaImage";
 import { ReadinessChecklist } from "../components/common/ReadinessChecklist";
 import { ASPECT_RATIOS, WORKFLOW_TYPES } from "../constants/options";
 import { useQueue } from "../hooks/useQueue";
+
+function allowsNsfw(ageRating?: string | null) {
+  return ageRating === "Adult" || ageRating === "18+";
+}
 
 export function Generate() {
   const qc = useQueryClient();
@@ -18,11 +22,22 @@ export function Generate() {
   const [aspect, setAspect] = useState<"9:16" | "16:9" | "1:1">("9:16");
   const [workflow, setWorkflow] = useState<"image" | "video">("image");
   const [wardrobeId, setWardrobeId] = useState<number | "">("");
+  const [nsfw, setNsfw] = useState(false);
   const [requireReal, setRequireReal] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<number | null>(null);
 
   const selected = influencers.data?.find((i) => i.id === influencerId);
+  const nsfwAllowed = allowsNsfw(selected?.age_rating);
+
+  useEffect(() => {
+    if (!selected) return;
+    // Default NSFW on for 18+ adult creators; off for Family/Teen.
+    setNsfw(selected.age_rating === "18+");
+    if (!allowsNsfw(selected.age_rating)) {
+      setNsfw(false);
+    }
+  }, [selected?.id, selected?.age_rating]);
 
   const active = useQuery({
     queryKey: ["generation", activeId],
@@ -42,12 +57,15 @@ export function Generate() {
         user_prompt: prompt,
         aspect_ratio: aspect,
         workflow_type: workflow,
-        wardrobe_item_id: wardrobeId === "" ? undefined : Number(wardrobeId),
+        wardrobe_item_id: nsfw || wardrobeId === "" ? undefined : Number(wardrobeId),
+        is_nsfw: nsfw,
         require_real: requireReal,
       }),
     onSuccess: (gen) => {
       setActiveId(gen.id);
-      setMessage(`Queued generation #${gen.id}`);
+      setMessage(
+        `Queued generation #${gen.id}${gen.is_nsfw ? " (NSFW path — adult framing + clothing negatives)" : ""}`,
+      );
       qc.invalidateQueries({ queryKey: ["generations"] });
       qc.invalidateQueries({ queryKey: ["queue"] });
       qc.invalidateQueries({ queryKey: ["influencers"] });
@@ -120,6 +138,7 @@ export function Generate() {
             <label>Wardrobe (optional)</label>
             <select
               value={wardrobeId}
+              disabled={nsfw}
               onChange={(e) => setWardrobeId(e.target.value ? Number(e.target.value) : "")}
             >
               <option value="">None</option>
@@ -129,7 +148,22 @@ export function Generate() {
                 </option>
               ))}
             </select>
+            {nsfw && (
+              <p className="muted mt-1 text-xs">Wardrobe is skipped in NSFW mode so outfits don’t fight the scene.</p>
+            )}
           </div>
+          <label className="mb-3 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={nsfw}
+              disabled={!nsfwAllowed}
+              onChange={(e) => setNsfw(e.target.checked)}
+            />
+            NSFW / explicit mode
+            {!nsfwAllowed && selected && (
+              <span className="muted">(needs Adult or 18+ age rating)</span>
+            )}
+          </label>
           <label className="mb-4 flex items-center gap-2 text-sm">
             <input
               type="checkbox"

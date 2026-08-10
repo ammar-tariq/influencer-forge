@@ -101,7 +101,11 @@ export const api = {
     wardrobe_item_id?: number;
     is_nsfw?: boolean;
     require_real?: boolean;
-  }) => request<Generation>("/api/generations", { method: "POST", body: JSON.stringify(body) }),
+  }) =>
+    request<Generation>("/api/generations", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   regenerate: (id: number) =>
     request<Generation>(`/api/generations/${id}/regenerate`, { method: "POST" }),
   postProcess: (body: {

@@ -171,6 +171,7 @@ class ComfyUIClient:
         seed: int,
         workflow_type: str,
         face_reference: str | None = None,
+        negative: str | None = None,
     ) -> tuple[Path, Path, int, str]:
         from forge_python.readiness import find_checkpoints
 
@@ -191,6 +192,7 @@ class ComfyUIClient:
             seed=seed,
             width=width,
             height=height,
+            negative=negative or "blurry, low quality, deformed",
             checkpoint_name=checkpoints[0].name,
             face_reference=face_reference,
         )
@@ -219,6 +221,7 @@ class ComfyUIClient:
         workflow_type: str,
         face_reference: str | None = None,
         allow_stub: bool | None = None,
+        negative: str | None = None,
     ) -> tuple[Path, Path, int, str]:
         """Return output_path, thumbnail_path, seed, model_used."""
         used_seed = seed if seed is not None else int(uuid.uuid4().int % 2_147_483_647)
@@ -242,6 +245,7 @@ class ComfyUIClient:
                         seed=used_seed,
                         workflow_type=workflow_type,
                         face_reference=face_reference,
+                        negative=negative,
                     )
                 except (httpx.HTTPError, OSError, TimeoutError, RuntimeError, KeyError, ValueError) as exc:
                     logger.exception("ComfyUI generation failed")
