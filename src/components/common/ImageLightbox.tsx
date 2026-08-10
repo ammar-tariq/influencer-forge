@@ -6,11 +6,18 @@ type Props = {
   onClose: () => void;
   title: string;
   subtitle?: string;
-  /** Full image URL, or null to show placeholder message */
+  /** Full image or video URL, or null to show placeholder message */
   imageSrc?: string | null;
+  /** Force video player (otherwise inferred from .mp4/.webm) */
+  isVideo?: boolean;
   placeholder?: string;
   children?: ReactNode;
 };
+
+function looksLikeVideo(src?: string | null) {
+  if (!src) return false;
+  return /\.(mp4|webm|mov)(\?|$)/i.test(src);
+}
 
 export function ImageLightbox({
   open,
@@ -18,9 +25,11 @@ export function ImageLightbox({
   title,
   subtitle,
   imageSrc,
+  isVideo,
   placeholder = "No image",
   children,
 }: Props) {
+  const video = Boolean(isVideo || looksLikeVideo(imageSrc));
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -57,7 +66,17 @@ export function ImageLightbox({
         </header>
 
         <div className="lightbox-stage">
-          {imageSrc ? (
+          {imageSrc && video ? (
+            <video
+              key={imageSrc}
+              src={imageSrc}
+              className="lightbox-image"
+              controls
+              autoPlay
+              loop
+              playsInline
+            />
+          ) : imageSrc ? (
             <img src={imageSrc} alt={title} className="lightbox-image" />
           ) : (
             <p className="muted px-6 text-center text-sm">{placeholder}</p>

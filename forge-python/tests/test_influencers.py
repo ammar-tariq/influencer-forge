@@ -142,3 +142,52 @@ async def test_face_lock_from_generation(client: AsyncClient) -> None:
     assert cleared.status_code == 200
     assert cleared.json()["face_lock"] in ("none", None)
     assert not cleared.json()["looks"].get("base_portrait_path")
+
+
+@pytest.mark.asyncio
+async def test_patch_personality_and_looks_face_lock_stale(client: AsyncClient) -> None:
+    from forge_python import config
+    from forge_python.orchestrator import db
+
+    iid = await _create_influencer(client, "Editable")
+    detail = await client.get(f"/api/influencers/{iid}")
+    assert detail.status_code == 200
+    pid = detail.json()["personality_id"]
+    lid = detail.json()["looks_id"]
+
+    patched_p = await client.patch(
+        f"/api/personalities/{pid}",
+        json={"name": "Editable Two", "niche": "Fitness", "age_rating": "18+"},
+    )
+    assert patched_p.status_code == 200
+    assert patched_p.json()["name"] == "Editable Two"
+    assert patched_p.json()["niche"] == "Fitness"
+
+    listed = await client.get("/api/influencers")
+    assert any(r["id"] == iid and r["name"] == "Editable Two" for r in listed.json())
+
+    # Lock face then change hair → stale warning
+    out = config.settings.generations_dir / "edit_lock.png"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 16)
+    cur = await db.execute(
+        """
+        INSERT INTO generations(
+            influencer_id, user_prompt, expanded_prompt, workflow_type,
+            model_used, llm_used, aspect_ratio, status, output_path, is_nsfw, is_vaulted
+        ) VALUES (?, 'p', 'p', 'image', 'stub', 'template', '9:16', 'completed', ?, 0, 0)
+        """,
+        (iid, str(out)),
+    )
+    gid = int(cur.lastrowid)
+    await client.post(f"/api/influencers/{iid}/face-lock", json={"generation_id": gid})
+
+    patched_l = await client.patch(
+        f"/api/looks/{lid}",
+        json={"hair_style": "Curly long", "hair_color": "Red"},
+    )
+    assert patched_l.status_code == 200
+    body = patched_l.json()
+    assert body["hair_style"] == "Curly long"
+    assert body["face_lock_stale"] is True
+    assert body.get("base_portrait_path")  # lock kept

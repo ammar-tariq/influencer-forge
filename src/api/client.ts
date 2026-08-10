@@ -65,10 +65,36 @@ export const api = {
   listPersonalities: () => request<Personality[]>("/api/personalities"),
   createPersonality: (body: Omit<Personality, "id" | "system_prompt" | "created_at">) =>
     request<Personality>("/api/personalities", { method: "POST", body: JSON.stringify(body) }),
+  updatePersonality: (
+    id: number,
+    body: Partial<Omit<Personality, "id" | "system_prompt" | "created_at">>,
+  ) =>
+    request<Personality>(`/api/personalities/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
 
   listLooks: () => request<Looks[]>("/api/looks"),
   createLooks: (body: Partial<Looks> & { name: string }) =>
     request<Looks>("/api/looks", { method: "POST", body: JSON.stringify(body) }),
+  updateLooks: (
+    id: number,
+    body: Partial<
+      Pick<
+        Looks,
+        | "name"
+        | "age"
+        | "gender"
+        | "ethnicity"
+        | "hair_color"
+        | "hair_style"
+        | "eye_color"
+        | "style"
+        | "body"
+      >
+    >,
+  ) =>
+    request<Looks>(`/api/looks/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   uploadFaceSeed: async (looksId: number, file: File) => {
     const form = new FormData();
     form.append("file", file);

@@ -24,21 +24,30 @@
 1. **Studio home** checklist links you through Create → Influencers → Generate → Vault.
 2. **New influencer** is 3 steps: Personality → Face (gender) → Body (height, figure, skin, etc.). After create you land on that influencer’s **profile**.
 3. On the profile, **Face lock setup** shows identity-shot progress. Edit the prompt, re-roll, or upload a Face Seed, then **Lock this face**. Until locked, later gens won’t use img2img identity.
-4. **Influencers** (sidebar) lists everyone; open a card for personality/looks, all their posts, Create post, or Archive.
-5. **Library** (`/history`) filters with `?influencer={id}` — also linked from each profile (“All posts” / “Their posts”).
-6. **Create post** defaults to **full body** and offers Pose / Dressing / Setting presets (including nude). You can still add free notes.
-7. Progress for the active job shows in the right-hand Progress panel.
+4. **Edit** personality/looks on the profile anytime (`PATCH` APIs). Changing hair/eyes/ethnicity while locked shows a “re-lock face” banner (lock is not auto-cleared).
+5. **Influencers** (sidebar) lists everyone; open a card for personality/looks, all their posts, Create post, or Archive.
+6. **Library** (`/history`) filters with `?influencer={id}` — also linked from each profile (“All posts” / “Their posts”).
+7. **Create post** defaults to **full body** and offers Pose / Dressing / Setting presets (including nude). You can still add free notes.
+8. Progress for the active job shows in the right-hand Progress panel.
 
-## Face consistency (img2img lock)
+## Face consistency (FaceID → img2img)
 
-When a look has a **Face Seed** upload or a **base portrait** (locked on the influencer profile), generation uses `image_img2img.json`:
+When a look has a **Face Seed** or locked **base portrait**, generation prefers:
 
-1. Reference is staged as a **large sharp head** over a blurred body prior (keeps face/hair; frees pose/outfit).
-2. ComfyUI LoadImage → VAEEncode → KSampler with **moderate denoise** (~0.55–0.68, hard-capped at 0.72). Higher values were wiping identity and turning detailed prompts graphic.
-3. Face-locked prompts lead with identity tokens and stay short; CFG ~5.
-4. History `model_used` shows `sdxl-img2img`
+1. **IP-Adapter FaceID Plus SDXL** (`image_ipadapter_faceid.json`) when `ComfyUI_IPAdapter_plus` + FaceID weights are installed → `model_used` = `sdxl-faceid`
+2. Else **img2img** (`image_img2img.json`): soft-canvas head prior + moderate denoise (~0.55–0.68, cap 0.72) → `sdxl-img2img`
+3. Else plain txt2img (`sdxl`)
 
-Bikini/lingerie prompts no longer auto-append `nude` or ban the outfit in negatives. Upload a Face Seed for the strongest lock. Without a reference, gens stay plain txt2img (`sdxl`). InstantID/IP-Adapter remains a later upgrade.
+Install notes: `src-tauri/resources/comfyui/README.md`. Readiness item `ipadapter_faceid` is optional and does not block core `real` mode.
+
+Bikini/lingerie prompts no longer auto-append `nude` or ban the outfit in negatives. Upload a Face Seed for the strongest lock.
+
+## Video (AnimateDiff)
+
+1. Install **ComfyUI-AnimateDiff-Evolved** + **ComfyUI-VideoHelperSuite** and an `mm_sdxl_*` motion module (see ComfyUI README).
+2. Generate with type **Video**. Output is `media/generations/{id}.mp4` when VHS encodes successfully (`model_used` = `animate_diff`).
+3. With FaceID weights + a face lock, video uses AnimateDiff **and** FaceID (`animate_diff-faceid`).
+4. Without motion modules, the job errors (or falls back to stub if stub fallback is allowed). Library / Generate preview use `<video>` for `.mp4`.
 
 ## Explicit / NSFW generations
 
@@ -66,6 +75,7 @@ Orchestrator serves files from the app data `media/` folder at `http://127.0.0.1
 | On disk | URL |
 |---------|-----|
 | `media/generations/{id}.png` | `/media/generations/{id}.png` |
+| `media/generations/{id}.mp4` | `/media/generations/{id}.mp4` |
 | `media/thumbnails/{id}_thumb.png` | `/media/thumbnails/{id}_thumb.png` |
 | `media/uploads/face_*.png` | `/media/uploads/face_*.png` |
 

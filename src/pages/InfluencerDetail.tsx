@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, mediaUrl, vaultRevealUrl } from "../api/client";
+import { InfluencerEditPanels } from "../components/InfluencerEditPanels";
 import { GenerationCard } from "../components/common/GenerationCard";
 import { FaceLockBadge, StatusBadge } from "../components/common/StatusBadge";
 import { ImageLightbox } from "../components/common/ImageLightbox";
@@ -11,11 +12,6 @@ import type { Generation } from "../types";
 
 const DEFAULT_IDENTITY_PROMPT =
   "full body shot, head to toe visible in frame, standing naturally, wearing casual everyday outfit, clean photo studio background, face clearly visible";
-
-function bodyEntries(body?: Record<string, string> | null) {
-  if (!body) return [];
-  return Object.entries(body).filter(([, v]) => Boolean(v));
-}
 
 function isInFlight(g: Generation) {
   return ["pending", "queued", "processing"].includes(g.status);
@@ -31,6 +27,7 @@ export function InfluencerDetail() {
   const [selected, setSelected] = useState<Generation | null>(null);
   const [identityPrompt, setIdentityPrompt] = useState(DEFAULT_IDENTITY_PROMPT);
   const [faceFile, setFaceFile] = useState<File | null>(null);
+  const [faceLockStale, setFaceLockStale] = useState(false);
 
   const detail = useQuery({
     queryKey: ["influencer", influencerId],
@@ -99,6 +96,7 @@ export function InfluencerDetail() {
     mutationFn: (generationId: number) =>
       api.lockFace(influencerId, { generation_id: generationId }),
     onSuccess: () => {
+      setFaceLockStale(false);
       invalidate();
       setSelected(null);
     },
@@ -116,6 +114,7 @@ export function InfluencerDetail() {
     },
     onSuccess: () => {
       setFaceFile(null);
+      setFaceLockStale(false);
       invalidate();
     },
   });
@@ -154,7 +153,6 @@ export function InfluencerDetail() {
 
   const inf = detail.data;
   const looks = inf.looks;
-  const personality = inf.personality;
   const unlocked = Boolean(vaultStatus.data?.unlocked);
   const faceLocked = Boolean(inf.face_lock && inf.face_lock !== "none");
   const showSetup = justCreated || !faceLocked;
@@ -206,7 +204,7 @@ export function InfluencerDetail() {
             </span>
             <FaceLockBadge faceLock={inf.face_lock} />
           </div>
-          {personality?.bio && <p className="mt-3 text-sm">{personality.bio}</p>}
+          {inf.personality?.bio && <p className="mt-3 text-sm">{inf.personality.bio}</p>}
           <div className="mt-5 flex flex-wrap gap-2">
             <Link className="btn" to="/generate" state={{ createdId: inf.id, name: inf.name }}>
               Create post
@@ -357,64 +355,22 @@ export function InfluencerDetail() {
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="panel">
-          <h2 className="text-lg">Personality</h2>
-          {personality ? (
-            <dl className="muted mt-3 space-y-2 text-sm">
-              <div>
-                <dt className="font-semibold text-[var(--ink)]">Niche</dt>
-                <dd>{personality.niche}</dd>
-              </div>
-              <div>
-                <dt className="font-semibold text-[var(--ink)]">Age rating</dt>
-                <dd>{personality.age_rating}</dd>
-              </div>
-              {Object.entries(personality.traits || {}).map(([k, v]) => (
-                <div key={k}>
-                  <dt className="font-semibold capitalize text-[var(--ink)]">{k}</dt>
-                  <dd>{v}</dd>
-                </div>
-              ))}
-            </dl>
-          ) : (
-            <p className="muted mt-2 text-sm">No personality data.</p>
-          )}
+      {faceLockStale && (
+        <div className="panel border-[var(--accent-2)]">
+          <p className="text-sm">
+            Looks changed while a face lock is set — re-lock from an identity shot or upload a Face
+            Seed so hair/eyes match the new text.
+          </p>
         </div>
-        <div className="panel">
-          <h2 className="text-lg">Looks & body</h2>
-          {looks ? (
-            <dl className="muted mt-3 space-y-2 text-sm">
-              <div>
-                <dt className="font-semibold text-[var(--ink)]">Gender</dt>
-                <dd>{looks.gender ?? "—"}</dd>
-              </div>
-              <div>
-                <dt className="font-semibold text-[var(--ink)]">Age</dt>
-                <dd>{looks.age ?? "—"}</dd>
-              </div>
-              <div>
-                <dt className="font-semibold text-[var(--ink)]">Appearance</dt>
-                <dd>
-                  {[looks.ethnicity, looks.hair_color, looks.hair_style, looks.eye_color, looks.style]
-                    .filter(Boolean)
-                    .join(" · ") || "—"}
-                </dd>
-              </div>
-              {bodyEntries(looks.body).map(([k, v]) => (
-                <div key={k}>
-                  <dt className="font-semibold capitalize text-[var(--ink)]">
-                    {k.replace(/_/g, " ")}
-                  </dt>
-                  <dd>{v}</dd>
-                </div>
-              ))}
-            </dl>
-          ) : (
-            <p className="muted mt-2 text-sm">No looks data.</p>
-          )}
-        </div>
-      </div>
+      )}
+
+      <InfluencerEditPanels
+        detail={inf}
+        onSaved={({ faceLockStale: stale } = {}) => {
+          invalidate();
+          if (stale) setFaceLockStale(true);
+        }}
+      />
 
       <section className="space-y-4">
         <div className="flex flex-wrap items-end justify-between gap-3">

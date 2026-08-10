@@ -8,6 +8,27 @@
       "url": "https://raw.githubusercontent.com/github/gitignore/main/Python.gitignore",
       "required": false,
       "notes": "Tiny resumable smoke asset. Replace with SDXL / GGUF URLs for real installs."
+    },
+    {
+      "name": "ip-adapter-faceid-plusv2-sdxl",
+      "path": "ipadapter/ip-adapter-faceid-plusv2_sdxl.bin",
+      "url": "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sdxl.bin",
+      "required": false,
+      "notes": "IP-Adapter FaceID Plus V2 for SDXL. Also needs CLIP-ViT-H under clip_vision/."
+    },
+    {
+      "name": "clip-vision-vit-h",
+      "path": "clip_vision/CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors",
+      "url": "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/model.safetensors",
+      "required": false,
+      "notes": "Rename/copy to CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors for ComfyUI CLIPVisionLoader if needed."
+    },
+    {
+      "name": "animatediff-mm-sdxl-v10-beta",
+      "path": "animatediff_models/mm_sdxl_v10_beta.safetensors",
+      "url": "https://huggingface.co/conrevo/AnimateDiff-A1111/resolve/main/motion_module/mm_sdxl_v10_beta.safetensors",
+      "required": false,
+      "notes": "AnimateDiff SDXL motion module. Place under ComfyUI/models/animatediff_models/."
     }
   ]
 }

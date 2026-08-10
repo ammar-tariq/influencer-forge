@@ -5,7 +5,7 @@ Local-first desktop studio for creating and generating content for AI virtual in
 **Stack:** Tauri v2 (Rust) · React 18+/TypeScript · FastAPI (Python) · SQLite  
 **License:** MIT · **Spec:** [PROJECT_SPECIFICATION.md](./PROJECT_SPECIFICATION.md)
 
-Phase 1 uses a **stub generator** (Pillow placeholders) and **system Python**. Real ComfyUI/SDXL and embedded Python are wired for later packaging; see `docs/`.
+Phase 1 uses a **stub generator** (Pillow placeholders) and **system / uv venv Python**. Real ComfyUI/SDXL is optional; release builds assemble a portable Python via `scripts/assemble-portable-python.sh` (weights still downloaded separately — see `docs/setup/PACKAGING.md`).
 
 ---
 
@@ -66,6 +66,7 @@ cd forge-python && uv run pytest -q
 | [CONTRIBUTING.md](./CONTRIBUTING.md) | PR process, Conventional Commits, AI-generated commits |
 | [docs/setup/CURSOR.md](./docs/setup/CURSOR.md) | **Cursor IDE setup path** |
 | [docs/setup/REAL_GENERATION.md](./docs/setup/REAL_GENERATION.md) | **When CRUD becomes real AI images** |
+| [docs/setup/PACKAGING.md](./docs/setup/PACKAGING.md) | Dev vs release, portable Python assemble |
 | [docs/architecture/OVERVIEW.md](./docs/architecture/OVERVIEW.md) | Runtime architecture |
 | [docs/modules/README.md](./docs/modules/README.md) | Module index |
 | [AGENTS.md](./AGENTS.md) | Instructions for AI coding agents |
@@ -91,7 +92,8 @@ influencer-forge/
 ## Status
 
 - Stub generation + full UI/API surface for local development
-- ComfyUI workflows checked in as JSON stubs under `src-tauri/resources/workflows/`
-- Enable real downloads later with `IFORGE_ENABLE_MODEL_DOWNLOADS=1` / `IFORGE_ENABLE_COMFYUI=1`
+- Real workflows under `src-tauri/resources/workflows/` (FaceID / img2img / AnimateDiff)
+- Enable real downloads with `IFORGE_ENABLE_MODEL_DOWNLOADS=1` / `IFORGE_ENABLE_COMFYUI=1`
 - Clone ComfyUI into `src-tauri/resources/comfyui/ComfyUI` (see that folder’s README), then set `IFORGE_ENABLE_COMFYUI=1`
+- Release packaging: `./scripts/assemble-portable-python.sh` then `npm run tauri build` (see `docs/setup/PACKAGING.md`)
 - Edit download targets in `src-tauri/resources/bootstrap/models.json`

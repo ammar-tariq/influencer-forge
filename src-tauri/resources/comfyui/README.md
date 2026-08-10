@@ -37,12 +37,39 @@ npm run tauri dev
 3. Open the app Dashboard — the readiness checklist should turn green.
 
 4. Generate an image. History should show a real SDXL output (`model_used` ≠ `stub`).
-5. With a Face Seed or base portrait, later gens use img2img (`model_used` = `sdxl-img2img`) for face consistency.
+5. With a Face Seed or base portrait:
+   - **IP-Adapter FaceID** when installed → `model_used` = `sdxl-faceid`
+   - else **img2img** fallback → `model_used` = `sdxl-img2img`
 
-## Face Seed note
+## IP-Adapter FaceID Plus (stronger identity)
 
-Uploading a Face Seed stores a local fingerprint today and annotates the prompt.
-Full InstantID/IP-Adapter node wiring is the next milestone after SDXL txt2img works.
+```bash
+cd ComfyUI/custom_nodes
+git clone https://github.com/cubiq/ComfyUI_IPAdapter_plus.git
+```
+
+Place weights (not in git):
+
+| File | Typical path |
+|------|----------------|
+| `ip-adapter-faceid-plusv2_sdxl.bin` | `ComfyUI/models/ipadapter/` |
+| `CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors` | `ComfyUI/models/clip_vision/` |
+
+InsightFace buffalo models are pulled by the IPAdapter InsightFace loader on first use (CPU provider is fine on Apple Silicon). Restart ComfyUI after installing the custom node. Readiness item `ipadapter_faceid` turns green when node + weights are present.
+
+## AnimateDiff video (optional)
+
+```bash
+cd ComfyUI/custom_nodes
+git clone https://github.com/Kosinkadink/ComfyUI-AnimateDiff-Evolved.git
+git clone https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git
+```
+
+Place a motion module, e.g. `mm_sdxl_v10_beta.safetensors`, under:
+
+`ComfyUI/models/animatediff_models/`
+
+(or the Evolved `models/` folder). Generate with type **Video** in the app. Outputs are `.mp4` when Video Helper Suite is available; otherwise the job falls back to stub/still. Readiness item `animatediff` tracks this.
 
 ## Apple Silicon / macOS notes
 

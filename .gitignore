@@ -46,3 +46,9 @@ src-tauri/resources/comfyui/ComfyUI/
 **/*.ckpt
 **/*.gguf
 
+# Assembled portable Python / frozen forge-python (release only; keep READMEs)
+src-tauri/resources/python/**
+!src-tauri/resources/python/README.md
+src-tauri/resources/forge-python/**
+!src-tauri/resources/forge-python/README.md
+

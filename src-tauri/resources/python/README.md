@@ -1,9 +1,6 @@
-# Embedded Python (release packaging)
+# Portable Python (release bundle)
 
-Place a portable CPython runtime here for Phase 3 release builds:
+This directory is filled by `scripts/assemble-portable-python.sh` before `tauri build`.
+The assembled interpreter is gitignored — only this README is tracked.
 
-- `python` / `python.exe`
-- `Lib/site-packages` (or equivalent) with orchestrator dependencies
-
-Development ignores this folder and uses `forge-python/.venv` or system Python.
 See `docs/setup/PACKAGING.md`.

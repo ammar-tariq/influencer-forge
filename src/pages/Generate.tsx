@@ -123,6 +123,9 @@ export function Generate() {
 
   const mode = readiness.data?.mode ?? "stub";
   const result = active.data;
+  const resultIsVideo =
+    result?.workflow_type === "video" ||
+    Boolean(result?.output_path?.match(/\.(mp4|webm|mov)$/i));
   const resultSrc =
     result?.status === "completed"
       ? (result.output_path ?? result.output_thumbnail_path ?? result.teaser_path)
@@ -417,6 +420,7 @@ export function Generate() {
                 alt="Generated post"
                 className="h-48 w-full rounded-xl object-cover"
                 fallback={activeId ? "Waiting for output…" : "Result preview"}
+                isVideo={resultIsVideo}
               />
             )}
             {result?.status === "completed" && (

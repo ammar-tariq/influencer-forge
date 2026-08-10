@@ -29,14 +29,20 @@ impl ProcessManager {
         let data_dir = app_data_dir();
         std::fs::create_dir_all(&data_dir)?;
 
-        // Prefer uv-managed venv when present in dev.
+        // Release: bundled portable Python wins. Dev: prefer uv venv when present.
         let python_exec = {
+            let parts: Vec<_> = python.iter().collect();
+            let bundled = parts.windows(2).any(|w| {
+                w[0] == std::ffi::OsStr::new("resources") && w[1] == std::ffi::OsStr::new("python")
+            });
             let venv_python = root.join(".venv").join(if cfg!(target_os = "windows") {
                 "Scripts/python.exe"
             } else {
                 "bin/python"
             });
-            if venv_python.exists() {
+            if bundled {
+                python
+            } else if venv_python.exists() {
                 venv_python
             } else {
                 python

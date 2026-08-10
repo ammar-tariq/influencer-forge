@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Influencers list + detail screens (`/influencers`, `/influencers/:id`) with personality/looks, per-influencer generations, archive, and Library deep links (`?influencer=`).
 - Face-lock setup on the profile: identity prompt retries, Face Seed upload, `POST /api/influencers/{id}/face-lock` (explicit lock; no longer auto-locks on first SFW).
+- `PATCH /api/personalities/{id}` and `PATCH /api/looks/{id}` with profile edit UI; `face_lock_stale` warning when hair/eyes/ethnicity change while locked.
+- IP-Adapter FaceID Plus SDXL workflow (`image_ipadapter_faceid.json`) with img2img fallback; readiness + bootstrap URL entries for FaceID weights.
+- Real AnimateDiff video workflow (`video_animate.json`) producing `.mp4` (optional FaceID on video); Library/Generate `<video>` preview.
+- `scripts/assemble-portable-python.sh` + Tauri bundle resources for portable Python / frozen `forge-python` (models still downloaded separately).
 - `GET /api/influencers/{id}` (`InfluencerDetail`) and `POST /api/influencers/{id}/archive`; list rows include `generation_count`.
 - ComfyUI client queue/history/view path with stub fallback and `/api/comfyui/status`.
 - Resumable model bootstrap downloader driven by `resources/bootstrap/models.json`.

@@ -234,11 +234,11 @@ class ComfyUIClient:
         width: int,
         height: int,
         cover_fill: bool = False,
+        mode: str = "img2img",
     ) -> str:
         """Stage face ref into ComfyUI input/; return filename for LoadImage.
 
-        Default pads a head crop onto a soft canvas so img2img does not lock the
-        reference photo's crop, pose, and clothing into the new scene.
+        mode=img2img: soft canvas (pose/clothes free). mode=faceid: sharp head crop.
         """
         src = Path(face_reference)
         if not src.is_file():
@@ -248,11 +248,14 @@ class ComfyUIClient:
         dest_name = f"iforge_face_{generation_id}.png"
         dest = input_dir / dest_name
         with Image.open(src) as im:
-            staged = (
-                _cover_resize(im, width, height)
-                if cover_fill
-                else compose_identity_canvas(im, width, height)
-            )
+            if mode == "faceid":
+                head = _head_crop(im.convert("RGB"))
+                side = max(512, min(768, max(head.size)))
+                staged = head.resize((side, side), Image.Resampling.LANCZOS)
+            elif cover_fill:
+                staged = _cover_resize(im, width, height)
+            else:
+                staged = compose_identity_canvas(im, width, height)
             staged.save(dest)
         return dest_name
 
@@ -269,6 +272,8 @@ class ComfyUIClient:
         face_reference: str | None = None,
         image_filename: str | None = None,
         denoise: float | None = None,
+        ipadapter_file: str | None = None,
+        clip_vision_file: str | None = None,
     ) -> dict[str, Any]:
         prompt = copy.deepcopy(bundle.get("prompt") or {})
         meta = bundle.get("meta") or {}
@@ -278,9 +283,11 @@ class ComfyUIClient:
         size_node = str(meta.get("size_node", "5"))
         ckpt_node = str(meta.get("checkpoint_node", "4"))
         image_node = str(meta.get("image_node", "10"))
+        ipa_node = str(meta.get("ipadapter_node", "12"))
+        clip_node = str(meta.get("clip_vision_node", "13"))
         if pos_node in prompt:
             text = positive
-            # Only append filename hint for txt2img; img2img already loads the pixels.
+            # Only append filename hint for txt2img; img2img/FaceID already load pixels.
             if face_reference and not image_filename:
                 text = f"{positive}, consistent face reference:{Path(face_reference).name}"
             prompt[pos_node].setdefault("inputs", {})["text"] = text
@@ -297,7 +304,22 @@ class ComfyUIClient:
             prompt[ckpt_node].setdefault("inputs", {})["ckpt_name"] = checkpoint_name
         if image_filename and image_node in prompt:
             prompt[image_node].setdefault("inputs", {})["image"] = image_filename
+        if ipadapter_file and ipa_node in prompt:
+            prompt[ipa_node].setdefault("inputs", {})["ipadapter_file"] = ipadapter_file
+        if clip_vision_file and clip_node in prompt:
+            prompt[clip_node].setdefault("inputs", {})["clip_name"] = clip_vision_file
         return prompt
+
+    async def object_info_class_types(self) -> set[str]:
+        try:
+            async with httpx.AsyncClient(timeout=4.0) as client:
+                resp = await client.get(f"{self.base_url}/object_info")
+                if resp.status_code != 200:
+                    return set()
+                data = resp.json()
+                return set(data.keys()) if isinstance(data, dict) else set()
+        except (httpx.HTTPError, OSError, ValueError):
+            return set()
 
     async def queue_prompt(self, prompt: dict[str, Any]) -> str:
         payload = {"prompt": prompt, "client_id": self._client_id}
@@ -311,6 +333,14 @@ class ComfyUIClient:
         return str(prompt_id)
 
     async def wait_for_images(self, prompt_id: str, timeout_s: float = 180.0) -> list[dict[str, Any]]:
+        media = await self.wait_for_media(prompt_id, timeout_s=timeout_s)
+        images = [m for m in media if m.get("kind") == "image"]
+        if images:
+            return images
+        raise TimeoutError(f"ComfyUI prompt {prompt_id} produced no images")
+
+    async def wait_for_media(self, prompt_id: str, timeout_s: float = 240.0) -> list[dict[str, Any]]:
+        """Poll history for images and/or video helper suite outputs."""
         loop = asyncio.get_running_loop()
         deadline = loop.time() + timeout_s
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -320,13 +350,14 @@ class ComfyUIClient:
                 history = resp.json()
                 if prompt_id in history:
                     outputs = history[prompt_id].get("outputs", {})
-                    images = [
-                        img
-                        for node_out in outputs.values()
-                        for img in node_out.get("images", [])
-                    ]
-                    if images:
-                        return images
+                    found: list[dict[str, Any]] = []
+                    for node_out in outputs.values():
+                        for img in node_out.get("images", []) or []:
+                            found.append({**img, "kind": "image"})
+                        for gif in node_out.get("gifs", []) or []:
+                            found.append({**gif, "kind": "video"})
+                    if found:
+                        return found
                 await asyncio.sleep(0.5)
         raise TimeoutError(f"ComfyUI prompt {prompt_id} timed out")
 
@@ -354,43 +385,132 @@ class ComfyUIClient:
         negative: str | None = None,
         is_nsfw: bool = False,
     ) -> tuple[Path, Path, int, str]:
-        from forge_python.readiness import find_checkpoints
+        from forge_python.readiness import (
+            faceid_weights_present,
+            find_checkpoints,
+            find_motion_module,
+            ipadapter_custom_node_installed,
+        )
 
         width, height = ASPECT_SIZES.get(aspect_ratio, ASPECT_SIZES["9:16"])
         use_img2img = False
+        use_faceid = False
         image_filename: str | None = None
         denoise: float | None = None
+        ipadapter_file: str | None = None
+        clip_vision_file: str | None = None
+        bundle: dict[str, Any]
 
-        if workflow_type != "video" and face_reference and Path(face_reference).is_file():
-            img2img = self.load_workflow_bundle("image_img2img.json")
-            if img2img.get("prompt") and not img2img.get("stub"):
-                use_img2img = True
+        if workflow_type == "video":
+            bundle = copy.deepcopy(self.load_workflow_bundle("video_animate.json"))
+            motion = find_motion_module()
+            meta = bundle.get("meta") or {}
+            motion_node = str(meta.get("motion_node", "20"))
+            ade_node = str(meta.get("ade_apply_node", "21"))
+            seed_node = str(meta.get("seed_node", "3"))
+            faceid_nodes = ("10", "12", "13", "14", "15")
+            if motion and motion_node in (bundle.get("prompt") or {}):
+                bundle["prompt"][motion_node].setdefault("inputs", {})["model_name"] = motion.name
+            weights = faceid_weights_present()
+            node_ok = ipadapter_custom_node_installed()
+            can_faceid = (
+                bool(face_reference)
+                and Path(face_reference).is_file()
+                and weights["ok"]
+                and node_ok
+            )
+            if can_faceid:
+                use_faceid = True
                 image_filename = self.stage_face_reference(
                     face_reference,
                     generation_id=generation_id,
                     width=width,
                     height=height,
+                    mode="faceid",
                 )
-                meta = img2img.get("meta") or {}
-                denoise = denoise_for_prompt(
-                    is_nsfw=is_nsfw, prompt_text=prompt_text, meta=meta
-                )
-                bundle = img2img
+                ipadapter_file = weights["ipadapter_file"]
+                clip_vision_file = weights["clip_vision_file"]
+                bundle["model"] = "animate_diff-faceid"
                 logger.info(
-                    "Using img2img face lock for gen %s (denoise=%.2f, file=%s)",
+                    "Using AnimateDiff + FaceID for gen %s (file=%s)",
                     generation_id,
-                    denoise,
                     image_filename,
                 )
             else:
-                bundle = self.load_workflow_bundle("image_faceid.json")
-        elif workflow_type == "video":
-            bundle = self.load_workflow_bundle("video_animate.json")
+                # Strip FaceID nodes so ComfyUI does not require IPAdapter for plain video.
+                prompt_nodes = bundle.setdefault("prompt", {})
+                for nid in faceid_nodes:
+                    prompt_nodes.pop(nid, None)
+                if seed_node in prompt_nodes:
+                    prompt_nodes[seed_node].setdefault("inputs", {})["model"] = [
+                        ade_node,
+                        0,
+                    ]
+                if face_reference and Path(face_reference).is_file():
+                    logger.info(
+                        "Video gen %s: FaceID unavailable — AnimateDiff without identity lock",
+                        generation_id,
+                    )
+        elif face_reference and Path(face_reference).is_file():
+            weights = faceid_weights_present()
+            node_ok = ipadapter_custom_node_installed()
+            faceid_bundle = self.load_workflow_bundle("image_ipadapter_faceid.json")
+            if (
+                weights["ok"]
+                and node_ok
+                and faceid_bundle.get("prompt")
+                and not faceid_bundle.get("stub")
+            ):
+                use_faceid = True
+                image_filename = self.stage_face_reference(
+                    face_reference,
+                    generation_id=generation_id,
+                    width=width,
+                    height=height,
+                    mode="faceid",
+                )
+                ipadapter_file = weights["ipadapter_file"]
+                clip_vision_file = weights["clip_vision_file"]
+                bundle = faceid_bundle
+                logger.info(
+                    "Using IP-Adapter FaceID for gen %s (file=%s)",
+                    generation_id,
+                    image_filename,
+                )
+            else:
+                img2img = self.load_workflow_bundle("image_img2img.json")
+                if img2img.get("prompt") and not img2img.get("stub"):
+                    use_img2img = True
+                    image_filename = self.stage_face_reference(
+                        face_reference,
+                        generation_id=generation_id,
+                        width=width,
+                        height=height,
+                        mode="img2img",
+                    )
+                    meta = img2img.get("meta") or {}
+                    denoise = denoise_for_prompt(
+                        is_nsfw=is_nsfw, prompt_text=prompt_text, meta=meta
+                    )
+                    bundle = img2img
+                    logger.info(
+                        "Using img2img face lock for gen %s (denoise=%.2f, file=%s)",
+                        generation_id,
+                        denoise,
+                        image_filename,
+                    )
+                else:
+                    bundle = self.load_workflow_bundle("image_faceid.json")
         else:
             bundle = self.load_workflow_bundle("image_faceid.json")
 
         if bundle.get("stub") and not bundle.get("prompt"):
             raise RuntimeError("Workflow is stub-only")
+        if workflow_type == "video" and find_motion_module() is None:
+            raise RuntimeError(
+                "AnimateDiff motion module not found. Install ComfyUI-AnimateDiff-Evolved "
+                "and place an mm_sdxl / mm_sd_v15 module under models/animatediff_models."
+            )
         checkpoints = find_checkpoints()
         if not checkpoints:
             raise RuntimeError(
@@ -405,15 +525,46 @@ class ComfyUIClient:
             height=height,
             negative=negative or "blurry, low quality, deformed",
             checkpoint_name=checkpoints[0].name,
-            face_reference=None if use_img2img else face_reference,
+            face_reference=None if (use_img2img or use_faceid) else face_reference,
             image_filename=image_filename,
             denoise=denoise,
+            ipadapter_file=ipadapter_file,
+            clip_vision_file=clip_vision_file,
         )
         prompt_id = await self.queue_prompt(prompt)
-        images = await self.wait_for_images(prompt_id)
+        media = await self.wait_for_media(prompt_id)
         settings.ensure_directories()
+        model = str(
+            bundle.get("model")
+            or ("animate_diff" if workflow_type == "video" else "sdxl")
+        )
+        video = next((m for m in media if m.get("kind") == "video"), None)
+        image = next((m for m in media if m.get("kind") == "image"), None)
+        if workflow_type == "video" and video:
+            out = settings.generations_dir / f"{generation_id}.mp4"
+            await self.download_image(video, out)
+            thumb = settings.thumbnails_dir / f"{generation_id}_thumb.png"
+            if image:
+                frame = settings.generations_dir / f"{generation_id}_frame.png"
+                await self.download_image(image, frame)
+                with Image.open(frame) as im:
+                    rgba = im.convert("RGBA")
+                    tw = 256
+                    th = max(1, int(256 * rgba.height / max(rgba.width, 1)))
+                    rgba.resize((tw, th)).save(thumb)
+                try:
+                    frame.unlink()
+                except OSError:
+                    pass
+            else:
+                # Solid placeholder thumb when only mp4 is returned.
+                Image.new("RGB", (256, 456), (40, 48, 56)).save(thumb)
+            return out, thumb, seed, model
+
+        if not image:
+            raise RuntimeError("ComfyUI returned no usable image/video output")
         out = settings.generations_dir / f"{generation_id}.png"
-        await self.download_image(images[0], out)
+        await self.download_image(image, out)
         thumb = settings.thumbnails_dir / f"{generation_id}_thumb.png"
         with Image.open(out) as im:
             rgba = im.convert("RGBA")
@@ -421,10 +572,6 @@ class ComfyUIClient:
             tw = 256
             th = max(1, int(256 * h / max(w, 1)))
             rgba.resize((tw, th)).save(thumb)
-        model = str(
-            bundle.get("model")
-            or ("animate_diff" if workflow_type == "video" else "sdxl")
-        )
         return out, thumb, seed, model
 
     async def generate(

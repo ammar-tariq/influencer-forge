@@ -39,8 +39,11 @@ from forge_python.models import (
     InfluencerDetail,
     Looks,
     LooksCreate,
+    LooksUpdate,
+    LooksUpdateResponse,
     Personality,
     PersonalityCreate,
+    PersonalityUpdate,
     PostProcessRequest,
     QueueStatus,
     ResetRequest,
@@ -232,6 +235,44 @@ async def create_personality(body: PersonalityCreate) -> Personality:
     return Personality(id=int(pid), system_prompt=system_prompt, **body.model_dump())
 
 
+@app.patch("/api/personalities/{personality_id}", response_model=Personality)
+async def update_personality(personality_id: int, body: PersonalityUpdate) -> Personality:
+    row = await db.fetchone("SELECT * FROM personalities WHERE id = ?", (personality_id,))
+    if not row:
+        raise HTTPException(404, "Personality not found")
+    patch = body.model_dump(exclude_unset=True)
+    name = patch.get("name", row["name"])
+    bio = patch.get("bio", row["bio"])
+    traits = patch.get("traits", traits_from_json(row["traits"]))
+    niche = patch.get("niche", row["niche"])
+    age_rating = patch.get("age_rating", row["age_rating"])
+    system_prompt = build_system_prompt(name, bio, traits, niche)
+    await db.execute(
+        """
+        UPDATE personalities
+        SET name = ?, bio = ?, traits = ?, niche = ?, age_rating = ?, system_prompt = ?
+        WHERE id = ?
+        """,
+        (name, bio, traits_to_json(traits), niche, age_rating, system_prompt, personality_id),
+    )
+    # Keep influencer display name in sync when personality name changes.
+    if "name" in patch:
+        await db.execute(
+            "UPDATE influencers SET name = ? WHERE personality_id = ? AND is_active = 1",
+            (name, personality_id),
+        )
+    return Personality(
+        id=personality_id,
+        name=name,
+        bio=bio,
+        traits=traits,
+        niche=niche,
+        age_rating=age_rating,
+        system_prompt=system_prompt,
+        created_at=row.get("created_at"),
+    )
+
+
 # --- Looks ---
 @app.get("/api/looks", response_model=list[Looks])
 async def list_looks() -> list[Looks]:
@@ -276,6 +317,62 @@ async def create_looks(body: LooksCreate) -> Looks:
     data = body.model_dump()
     data["base_prompt"] = base_prompt
     return Looks(id=int(lid), **data)
+
+
+@app.patch("/api/looks/{looks_id}", response_model=LooksUpdateResponse)
+async def update_looks(looks_id: int, body: LooksUpdate) -> LooksUpdateResponse:
+    row = await db.fetchone("SELECT * FROM looks WHERE id = ?", (looks_id,))
+    if not row:
+        raise HTTPException(404, "Looks not found")
+    patch = body.model_dump(exclude_unset=True)
+    identity_keys = {"ethnicity", "hair_color", "hair_style", "eye_color"}
+    had_face_lock = bool(row.get("base_portrait_path") or row.get("reference_image_path"))
+    face_lock_stale = had_face_lock and bool(identity_keys & set(patch.keys()))
+
+    name = patch.get("name", row["name"])
+    age = patch.get("age", row["age"])
+    gender = patch.get("gender", row.get("gender") or "Female")
+    ethnicity = patch.get("ethnicity", row["ethnicity"])
+    hair_color = patch.get("hair_color", row["hair_color"])
+    hair_style = patch.get("hair_style", row["hair_style"])
+    eye_color = patch.get("eye_color", row["eye_color"])
+    style = patch.get("style", row["style"])
+    body_map = patch.get("body", body_from_json(row.get("body_json")))
+    base_prompt = build_looks_prompt(
+        age=age,
+        ethnicity=ethnicity,
+        hair_color=hair_color,
+        hair_style=hair_style,
+        eye_color=eye_color,
+        style=style,
+        gender=gender,
+        body=body_map,
+    )
+    await db.execute(
+        """
+        UPDATE looks
+        SET name = ?, age = ?, gender = ?, ethnicity = ?, hair_color = ?, hair_style = ?,
+            eye_color = ?, style = ?, body_json = ?, base_prompt = ?
+        WHERE id = ?
+        """,
+        (
+            name,
+            age,
+            gender,
+            ethnicity,
+            hair_color,
+            hair_style,
+            eye_color,
+            style,
+            body_to_json(body_map),
+            base_prompt,
+            looks_id,
+        ),
+    )
+    updated = await db.fetchone("SELECT * FROM looks WHERE id = ?", (looks_id,))
+    assert updated
+    looks = _looks_from_row(updated)
+    return LooksUpdateResponse(**looks.model_dump(), face_lock_stale=face_lock_stale)
 
 
 @app.post("/api/looks/{looks_id}/face-seed", response_model=Looks)

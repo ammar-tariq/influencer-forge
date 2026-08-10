@@ -38,6 +38,14 @@ class Personality(PersonalityCreate):
     created_at: str | None = None
 
 
+class PersonalityUpdate(BaseModel):
+    name: str | None = None
+    bio: str | None = None
+    traits: dict[str, str] | None = None
+    niche: str | None = None
+    age_rating: Literal["Family", "Teen", "Adult", "18+"] | None = None
+
+
 class LooksCreate(BaseModel):
     name: str
     age: int | None = 25
@@ -59,6 +67,24 @@ class Looks(LooksCreate):
     lora_path: str | None = None
     base_portrait_path: str | None = None
     created_at: str | None = None
+
+
+class LooksUpdate(BaseModel):
+    name: str | None = None
+    age: int | None = None
+    gender: str | None = None
+    ethnicity: str | None = None
+    hair_color: str | None = None
+    hair_style: str | None = None
+    eye_color: str | None = None
+    style: str | None = None
+    body: dict[str, str] | None = None
+
+
+class LooksUpdateResponse(Looks):
+    """Looks row plus whether an existing face lock may no longer match text fields."""
+
+    face_lock_stale: bool = False
 
 
 class InfluencerCreate(BaseModel):

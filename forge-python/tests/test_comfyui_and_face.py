@@ -115,6 +115,66 @@ def test_denoise_ramps_for_scene_change() -> None:
     )
 
 
+def test_inject_ipadapter_files(tmp_path: Path) -> None:
+    bundle = {
+        "meta": {
+            "positive_node": "6",
+            "negative_node": "7",
+            "seed_node": "3",
+            "image_node": "10",
+            "ipadapter_node": "12",
+            "clip_vision_node": "13",
+        },
+        "prompt": {
+            "3": {"class_type": "KSampler", "inputs": {"seed": 1}},
+            "6": {"class_type": "CLIPTextEncode", "inputs": {"text": "x"}},
+            "7": {"class_type": "CLIPTextEncode", "inputs": {"text": "y"}},
+            "10": {"class_type": "LoadImage", "inputs": {"image": "old.png"}},
+            "12": {
+                "class_type": "IPAdapterModelLoader",
+                "inputs": {"ipadapter_file": "old.bin"},
+            },
+            "13": {
+                "class_type": "CLIPVisionLoader",
+                "inputs": {"clip_name": "old.safetensors"},
+            },
+        },
+    }
+    client = ComfyUIClient()
+    prompt = client.inject_prompt(
+        bundle,
+        positive="portrait",
+        seed=1,
+        width=512,
+        height=768,
+        image_filename="iforge_face_1.png",
+        ipadapter_file="ip-adapter-faceid-plusv2_sdxl.bin",
+        clip_vision_file="CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors",
+    )
+    assert prompt["10"]["inputs"]["image"] == "iforge_face_1.png"
+    assert prompt["12"]["inputs"]["ipadapter_file"] == "ip-adapter-faceid-plusv2_sdxl.bin"
+    assert (
+        prompt["13"]["inputs"]["clip_name"]
+        == "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
+    )
+
+
+def test_stage_faceid_mode_keeps_sharp_head(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    comfy_root = tmp_path / "ComfyUI"
+    (comfy_root / "input").mkdir(parents=True)
+    monkeypatch.setattr("forge_python.comfyui_client.settings.comfyui_root", comfy_root)
+    face = tmp_path / "face.png"
+    Image.new("RGB", (200, 300), (90, 40, 40)).save(face)
+    client = ComfyUIClient()
+    name = client.stage_face_reference(
+        face, generation_id=7, width=576, height=1024, mode="faceid"
+    )
+    staged = comfy_root / "input" / name
+    with Image.open(staged) as im:
+        # FaceID staging is a square head crop for InsightFace / IP-Adapter.
+        assert im.size == (512, 512)
+
+
 def test_face_embedding_stable(tmp_path: Path) -> None:
     img = tmp_path / "face.png"
     Image.new("RGB", (64, 64), (120, 40, 80)).save(img)

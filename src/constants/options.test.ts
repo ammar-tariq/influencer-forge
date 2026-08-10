@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { OTHER, composeScenePrompt, resolveSelectValue } from "./options";
+import {
+  OTHER,
+  NICHES,
+  composeScenePrompt,
+  resolveSelectValue,
+  splitSelectValue,
+} from "./options";
 
 describe("resolveSelectValue", () => {
   it("returns listed option as-is", () => {
@@ -12,6 +18,19 @@ describe("resolveSelectValue", () => {
 
   it("returns empty string when Other and blank custom", () => {
     expect(resolveSelectValue(OTHER, "   ")).toBe("");
+  });
+});
+
+describe("splitSelectValue", () => {
+  it("keeps listed values on the select", () => {
+    expect(splitSelectValue("Fitness", NICHES)).toEqual({ value: "Fitness", other: "" });
+  });
+
+  it("maps custom stored values to Other", () => {
+    expect(splitSelectValue("indie music", NICHES)).toEqual({
+      value: OTHER,
+      other: "indie music",
+    });
   });
 });
 

@@ -296,6 +296,22 @@ export function resolveSelectValue(selected: string, otherText: string): string 
   return selected;
 }
 
+/** Map a stored custom value back into select + Other fields. */
+export function splitSelectValue(
+  stored: string,
+  options: readonly string[],
+): { value: string; other: string } {
+  const trimmed = (stored || "").trim();
+  if (!trimmed) {
+    const fallback = options.find((o) => o !== OTHER) ?? OTHER;
+    return { value: fallback, other: "" };
+  }
+  if (options.includes(trimmed) && trimmed !== OTHER) {
+    return { value: trimmed, other: "" };
+  }
+  return { value: OTHER, other: trimmed };
+}
+
 export function composeScenePrompt(input: {
   framing: string;
   pose: string;

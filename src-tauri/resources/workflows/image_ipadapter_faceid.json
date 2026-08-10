@@ -1,8 +1,8 @@
 {
-  "name": "video_animate",
-  "description": "AnimateDiff Evolved short clip (SDXL motion). Optional IP-Adapter FaceID when face-locked. Requires ComfyUI-AnimateDiff-Evolved + Video Helper Suite.",
+  "name": "image_ipadapter_faceid",
+  "description": "SDXL txt2img + IP-Adapter FaceID Plus (ComfyUI_IPAdapter_plus). Falls back to img2img when nodes/weights missing.",
   "stub": false,
-  "model": "animate_diff",
+  "model": "sdxl-faceid",
   "meta": {
     "positive_node": "6",
     "negative_node": "7",
@@ -10,18 +10,14 @@
     "size_node": "5",
     "checkpoint_node": "4",
     "image_node": "10",
-    "motion_node": "20",
     "ipadapter_node": "12",
     "clip_vision_node": "13",
     "faceid_apply_node": "14",
-    "ade_apply_node": "21",
     "required_nodes": [
-      "ADE_LoadAnimateDiffModel",
-      "ADE_ApplyAnimateDiffModelSimple",
-      "VHS_VideoCombine"
+      "IPAdapterModelLoader",
+      "CLIPVisionLoader",
+      "IPAdapterFaceID"
     ],
-    "motion_module": "mm_sdxl_v10_beta.safetensors",
-    "frame_count": 16,
     "ipadapter_file": "ip-adapter-faceid-plusv2_sdxl.bin",
     "clip_vision_file": "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
   },
@@ -30,27 +26,15 @@
       "class_type": "KSampler",
       "inputs": {
         "seed": 0,
-        "steps": 20,
+        "steps": 28,
         "cfg": 5.5,
-        "sampler_name": "euler",
-        "scheduler": "normal",
+        "sampler_name": "dpmpp_2m",
+        "scheduler": "karras",
         "denoise": 1,
-        "model": [
-          "14",
-          0
-        ],
-        "positive": [
-          "6",
-          0
-        ],
-        "negative": [
-          "7",
-          0
-        ],
-        "latent_image": [
-          "5",
-          0
-        ]
+        "model": ["14", 0],
+        "positive": ["6", 0],
+        "negative": ["7", 0],
+        "latent_image": ["5", 0]
       }
     },
     "4": {
@@ -64,55 +48,35 @@
       "inputs": {
         "width": 576,
         "height": 1024,
-        "batch_size": 16
+        "batch_size": 1
       }
     },
     "6": {
       "class_type": "CLIPTextEncode",
       "inputs": {
         "text": "POSITIVE_PROMPT",
-        "clip": [
-          "4",
-          1
-        ]
+        "clip": ["4", 1]
       }
     },
     "7": {
       "class_type": "CLIPTextEncode",
       "inputs": {
         "text": "NEGATIVE_PROMPT",
-        "clip": [
-          "4",
-          1
-        ]
+        "clip": ["4", 1]
       }
     },
     "8": {
       "class_type": "VAEDecode",
       "inputs": {
-        "samples": [
-          "3",
-          0
-        ],
-        "vae": [
-          "4",
-          2
-        ]
+        "samples": ["3", 0],
+        "vae": ["4", 2]
       }
     },
     "9": {
-      "class_type": "VHS_VideoCombine",
+      "class_type": "SaveImage",
       "inputs": {
-        "images": [
-          "8",
-          0
-        ],
-        "frame_rate": 8,
-        "loop_count": 0,
-        "filename_prefix": "influencerforge_vid",
-        "format": "video/h264-mp4",
-        "pingpong": false,
-        "save_output": true
+        "filename_prefix": "influencerforge",
+        "images": ["8", 0]
       }
     },
     "10": {
@@ -136,58 +100,24 @@
     "14": {
       "class_type": "IPAdapterFaceID",
       "inputs": {
-        "model": [
-          "21",
-          0
-        ],
-        "ipadapter": [
-          "12",
-          0
-        ],
-        "image": [
-          "10",
-          0
-        ],
-        "clip_vision": [
-          "13",
-          0
-        ],
-        "weight": 0.7,
+        "model": ["4", 0],
+        "ipadapter": ["12", 0],
+        "image": ["10", 0],
+        "clip_vision": ["13", 0],
+        "weight": 0.75,
         "weight_faceidv2": 1.0,
         "weight_type": "linear",
         "combine_embeds": "concat",
         "start_at": 0.0,
         "end_at": 1.0,
         "embeds_scaling": "V only",
-        "insightface": [
-          "15",
-          0
-        ]
+        "insightface": ["15", 0]
       }
     },
     "15": {
       "class_type": "IPAdapterInsightFaceLoader",
       "inputs": {
         "provider": "CPU"
-      }
-    },
-    "20": {
-      "class_type": "ADE_LoadAnimateDiffModel",
-      "inputs": {
-        "model_name": "mm_sdxl_v10_beta.safetensors"
-      }
-    },
-    "21": {
-      "class_type": "ADE_ApplyAnimateDiffModelSimple",
-      "inputs": {
-        "motion_model": [
-          "20",
-          0
-        ],
-        "model": [
-          "4",
-          0
-        ]
       }
     }
   }

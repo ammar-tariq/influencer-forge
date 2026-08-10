@@ -39,3 +39,43 @@ async def test_collect_readiness_stub_mode(tmp_path: Path, monkeypatch: pytest.M
     assert data["mode"] == "stub"
     assert data["real_ready"] is False
     assert any(item["id"] == "comfyui_source" and item["ok"] is False for item in data["checklist"])
+
+
+@pytest.mark.asyncio
+async def test_faceid_and_animatediff_optional_checklist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from forge_python import config
+    from forge_python.readiness import faceid_weights_present, find_motion_module
+
+    comfy = tmp_path / "ComfyUI"
+    (comfy / "custom_nodes" / "ComfyUI_IPAdapter_plus").mkdir(parents=True)
+    (comfy / "custom_nodes" / "ComfyUI-AnimateDiff-Evolved").mkdir(parents=True)
+    ipa_dir = comfy / "models" / "ipadapter"
+    clip_dir = comfy / "models" / "clip_vision"
+    motion_dir = comfy / "models" / "animatediff_models"
+    for d in (ipa_dir, clip_dir, motion_dir):
+        d.mkdir(parents=True)
+    (ipa_dir / "ip-adapter-faceid-plusv2_sdxl.bin").write_bytes(b"x" * 2048)
+    (clip_dir / "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors").write_bytes(b"y" * 2048)
+    motion = motion_dir / "mm_sdxl_v10_beta.safetensors"
+    with motion.open("wb") as fh:
+        fh.truncate(11_000_000)
+
+    monkeypatch.setattr(config.settings, "comfyui_root", comfy)
+    monkeypatch.setattr(config.settings, "models_dir", tmp_path / "models")
+    monkeypatch.setattr(config.settings, "extra_model_dirs", [])
+    monkeypatch.setattr(config.settings, "enable_comfyui", False)
+    monkeypatch.setattr("forge_python.readiness.settings", config.settings)
+
+    weights = faceid_weights_present()
+    assert weights["ok"] is True
+    assert find_motion_module() is not None
+
+    data = await collect_readiness()
+    assert data["faceid_ready"] is True
+    assert data["animatediff_ready"] is True
+    assert any(i["id"] == "ipadapter_faceid" and i["ok"] for i in data["checklist"])
+    assert any(i["id"] == "animatediff" and i["ok"] for i in data["checklist"])
+    # Optional extras must not gate core "real" mode by themselves.
+    assert data["real_ready"] is False

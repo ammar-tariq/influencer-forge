@@ -33,7 +33,12 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": ["resources/workflows/*", "resources/bootstrap/*"]
+    "resources": [
+      "resources/workflows/*",
+      "resources/bootstrap/*",
+      "resources/python/**/*",
+      "resources/forge-python/**/*"
+    ]
   },
   "plugins": {}
 }

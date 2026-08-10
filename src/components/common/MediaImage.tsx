@@ -6,12 +6,26 @@ type Props = {
   alt?: string;
   className?: string;
   fallback?: string;
+  /** Force <video>; otherwise inferred from extension */
+  isVideo?: boolean;
 };
 
-/** Renders an image from an orchestrator disk path via /media/... */
-export function MediaImage({ path, alt = "", className, fallback = "No image yet" }: Props) {
+function looksLikeVideo(path?: string | null) {
+  if (!path) return false;
+  return /\.(mp4|webm|mov)(\?|$)/i.test(path.replace(/\\/g, "/"));
+}
+
+/** Renders an image or video from an orchestrator disk path via /media/... */
+export function MediaImage({
+  path,
+  alt = "",
+  className,
+  fallback = "No image yet",
+  isVideo,
+}: Props) {
   const src = mediaUrl(path);
   const [failed, setFailed] = useState(false);
+  const video = Boolean(isVideo || looksLikeVideo(path) || looksLikeVideo(src));
 
   if (!src || failed) {
     return (
@@ -23,6 +37,21 @@ export function MediaImage({ path, alt = "", className, fallback = "No image yet
       >
         {fallback}
       </div>
+    );
+  }
+
+  if (video) {
+    return (
+      <video
+        key={src}
+        src={src}
+        className={className ?? "h-40 w-full rounded-xl object-cover"}
+        controls
+        muted
+        loop
+        playsInline
+        onError={() => setFailed(true)}
+      />
     );
   }
 

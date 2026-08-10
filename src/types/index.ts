@@ -27,6 +27,7 @@ export interface Looks {
   face_embedding?: string | null;
   base_portrait_path?: string | null;
   created_at?: string | null;
+  face_lock_stale?: boolean;
 }
 
 export interface Influencer {
