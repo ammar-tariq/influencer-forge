@@ -38,6 +38,7 @@ When a Face Seed / base portrait is set and the job is **not** identity-explore 
 
 - ComfyUI runs **FaceID** (or img2img fallback) with the reference image.
 - Text looks prompt is **body sliders only** — age, ethnicity, nationality, hair, eyes, and style text are omitted so they cannot invent a different person.
+- If FaceID **and** img2img are unavailable, the job **fails** (no plain txt2img / stub) so a different face is never invented.
 - Identity-explore (wizard / “try faces”) skips the reference on purpose.
 
 Clothing and identity are resolved on the orchestrator (`prompt_layers.resolve_prompt_layers`) before LLM expand / ComfyUI:

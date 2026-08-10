@@ -234,6 +234,54 @@ def test_face_embedding_stable(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_face_seed_refuses_plain_txt2img(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Face Seed must not silently fall back to inventing a different person."""
+    from forge_python import config
+    from forge_python.comfyui_client import ComfyUIClient
+
+    monkeypatch.setattr(config.settings, "data_dir", tmp_path)
+    monkeypatch.setattr(config.settings, "media_dir", tmp_path / "media")
+    monkeypatch.setattr(config.settings, "generations_dir", tmp_path / "media" / "generations")
+    monkeypatch.setattr(config.settings, "thumbnails_dir", tmp_path / "media" / "thumbnails")
+    monkeypatch.setattr(config.settings, "uploads_dir", tmp_path / "media" / "uploads")
+    config.settings.ensure_directories()
+    face = tmp_path / "seed.png"
+    Image.new("RGB", (64, 64), (10, 20, 30)).save(face)
+
+    client = ComfyUIClient()
+    # generate_via_comfy imports these from readiness at call time.
+    monkeypatch.setattr(
+        "forge_python.readiness.faceid_weights_present",
+        lambda: {"ok": False, "ipadapter_file": None, "clip_vision_file": None},
+    )
+    monkeypatch.setattr(
+        "forge_python.readiness.ipadapter_custom_node_installed",
+        lambda: False,
+    )
+
+    def fake_load(name: str):
+        if name == "image_ipadapter_faceid.json":
+            return {"stub": True, "prompt": {}}
+        if name == "image_img2img.json":
+            return {"stub": True, "prompt": {}}
+        return {"stub": False, "model": "sdxl", "prompt": {"1": {}}}
+
+    monkeypatch.setattr(client, "load_workflow_bundle", fake_load)
+
+    with pytest.raises(RuntimeError, match="Refusing plain txt2img"):
+        await client.generate_via_comfy(
+            generation_id=99,
+            prompt_text="full body",
+            aspect_ratio="9:16",
+            seed=1,
+            workflow_type="image",
+            face_reference=str(face),
+        )
+
+
+@pytest.mark.asyncio
 async def test_queue_prompt_and_history(monkeypatch: pytest.MonkeyPatch) -> None:
     client = ComfyUIClient(base_url="http://comfy.test")
 

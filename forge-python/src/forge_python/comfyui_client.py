@@ -550,7 +550,13 @@ class ComfyUIClient:
                         image_filename,
                     )
                 else:
-                    bundle = self.load_workflow_bundle("image_faceid.json")
+                    # Never fall through to plain txt2img — that invents a different person.
+                    raise RuntimeError(
+                        "Face Seed is set but FaceID and img2img are unavailable. "
+                        "Install ComfyUI_IPAdapter_plus + FaceID weights "
+                        "(see comfyui README), or ensure image_img2img.json is present. "
+                        "Refusing plain txt2img."
+                    )
         else:
             bundle = self.load_workflow_bundle("image_faceid.json")
 
@@ -648,6 +654,8 @@ class ComfyUIClient:
         stub_ok = settings.allow_stub_fallback if allow_stub is None else allow_stub
         if face_reference:
             logger.info("Face reference attached: %s", face_reference)
+            # Face Seed must never degrade to a Pillow placeholder of a random person.
+            stub_ok = False
 
         comfy_error: str | None = None
         if settings.enable_comfyui:
