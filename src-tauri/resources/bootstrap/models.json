@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "description": "Optional first-launch downloads. Keep weights out of git. Enable with IFORGE_ENABLE_MODEL_DOWNLOADS=1.",
+  "models": [
+    {
+      "name": "readme-marker",
+      "path": "README.downloaded.txt",
+      "url": "https://raw.githubusercontent.com/github/gitignore/main/Python.gitignore",
+      "required": false,
+      "notes": "Tiny resumable smoke asset. Replace with SDXL / GGUF URLs for real installs."
+    }
+  ]
+}

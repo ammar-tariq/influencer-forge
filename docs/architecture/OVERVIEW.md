@@ -25,6 +25,16 @@ Contains `data.db`, `media/`, `models/`, `vault/`, `uploads/`.
 |----------|---------|---------|
 | `IFORGE_DATA_DIR` | OS default | Override data root |
 | `IFORGE_PORT` | `8765` | API port |
-| `IFORGE_ENABLE_COMFYUI` | `0` | Prefer ComfyUI when healthy |
-| `IFORGE_ENABLE_MODEL_DOWNLOADS` | `0` | Allow HF bootstrap downloads |
+| `IFORGE_ENABLE_COMFYUI` | `0` | Spawn/use ComfyUI when available; stub fallback otherwise |
+| `IFORGE_ENABLE_MODEL_DOWNLOADS` | `0` | Download assets from `resources/bootstrap/models.json` |
+| `IFORGE_COMFYUI_ROOT` | `src-tauri/resources/comfyui/ComfyUI` | Path to ComfyUI `main.py` |
+| `IFORGE_MODEL_MANIFEST` | `resources/bootstrap/models.json` | Download manifest |
 | `IFORGE_PYTHON_ROOT` | auto | Override forge-python root |
+
+### ComfyUI flow
+
+1. Queue worker calls `ComfyUIClient.generate`
+2. If enabled, client may spawn ComfyUI and wait for `/system_stats`
+3. Workflow JSON under `src-tauri/resources/workflows/` is injected (prompt/seed/size)
+4. Prompt is posted to `/prompt`, history polled, image fetched via `/view`
+5. On any failure, Pillow stub generator keeps the product path usable

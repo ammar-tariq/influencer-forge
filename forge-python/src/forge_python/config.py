@@ -42,6 +42,18 @@ class Settings:
         self.models_dir = self.data_dir / "models"
         self.vault_dir = self.data_dir / "vault"
         self.uploads_dir = self.data_dir / "uploads"
+        self.comfyui_root = Path(
+            os.environ.get(
+                "IFORGE_COMFYUI_ROOT",
+                str(Path(__file__).resolve().parents[3] / "src-tauri" / "resources" / "comfyui" / "ComfyUI"),
+            )
+        )
+        self.model_manifest_path = Path(
+            os.environ.get(
+                "IFORGE_MODEL_MANIFEST",
+                str(Path(__file__).resolve().parents[3] / "src-tauri" / "resources" / "bootstrap" / "models.json"),
+            )
+        )
         self.workflows_dir = Path(
             os.environ.get(
                 "IFORGE_WORKFLOWS_DIR",

@@ -29,6 +29,14 @@ export const api = {
   base: BASE,
   health: () => request<{ status: string; version: string }>("/api/health"),
   bootstrap: () => request<BootstrapStatus>("/api/bootstrap/status"),
+  comfyStatus: () =>
+    request<{
+      enabled: boolean;
+      healthy: boolean;
+      url: string;
+      root: string;
+      process_running: boolean;
+    }>("/api/comfyui/status"),
   queue: () => request<QueueStatus>("/api/queue"),
   pauseQueue: () => request("/api/queue/pause", { method: "POST" }),
   resumeQueue: () => request("/api/queue/resume", { method: "POST" }),

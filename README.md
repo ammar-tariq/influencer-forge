@@ -92,3 +92,5 @@ influencer-forge/
 - Stub generation + full UI/API surface for local development
 - ComfyUI workflows checked in as JSON stubs under `src-tauri/resources/workflows/`
 - Enable real downloads later with `IFORGE_ENABLE_MODEL_DOWNLOADS=1` / `IFORGE_ENABLE_COMFYUI=1`
+- Clone ComfyUI into `src-tauri/resources/comfyui/ComfyUI` (see that folder’s README), then set `IFORGE_ENABLE_COMFYUI=1`
+- Edit download targets in `src-tauri/resources/bootstrap/models.json`

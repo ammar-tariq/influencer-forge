@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from forge_python import __version__
 from forge_python.config import settings
 from forge_python.db import Database, traits_from_json, traits_to_json
+from forge_python.face_seed import extract_face_embedding
 from forge_python.llm_manager import (
     build_looks_prompt,
     build_system_prompt,
@@ -74,6 +75,8 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     schedules.start()
     logger.info("Orchestrator ready on %s:%s", settings.host, settings.port)
     yield
+    if queue is not None:
+        queue.comfy.stop_process()
     if schedules:
         schedules.shutdown()
     await db.close()
@@ -122,6 +125,15 @@ async def bootstrap_status() -> BootstrapStatus:
         message=st.message,
         steps=st.steps,
     )
+
+
+@app.get("/api/comfyui/status")
+async def comfyui_status() -> dict[str, Any]:
+    if queue is None:
+        from forge_python.comfyui_client import ComfyUIClient
+
+        return await ComfyUIClient().status()
+    return await queue.comfy.status()
 
 
 @app.get("/api/queue", response_model=QueueStatus)
@@ -250,8 +262,7 @@ async def upload_face_seed(looks_id: int, file: UploadFile) -> Looks:
     dest = settings.uploads_dir / f"face_{looks_id}_{file.filename or 'seed.png'}"
     with dest.open("wb") as fh:
         shutil.copyfileobj(file.file, fh)
-    # Phase 2: extract InstantID/IP-Adapter embedding. Store path for now.
-    embedding = b"face-seed-placeholder"
+    embedding = extract_face_embedding(dest)
     await db.execute(
         "UPDATE looks SET reference_image_path = ?, face_embedding = ? WHERE id = ?",
         (str(dest), embedding, looks_id),

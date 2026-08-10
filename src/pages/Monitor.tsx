@@ -1,9 +1,14 @@
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSystemStats } from "../hooks/useSystemStats";
-import { useMutation } from "@tanstack/react-query";
 import { api } from "../api/client";
 
 export function Monitor() {
   const { data } = useSystemStats();
+  const comfy = useQuery({
+    queryKey: ["comfy-status"],
+    queryFn: api.comfyStatus,
+    refetchInterval: 3000,
+  });
   const pause = useMutation({ mutationFn: api.pauseQueue });
   const resume = useMutation({ mutationFn: api.resumeQueue });
 
@@ -11,7 +16,7 @@ export function Monitor() {
     <div className="space-y-6">
       <header>
         <h1 className="text-3xl tracking-tight">System monitor</h1>
-        <p className="muted mt-1">Live CPU/RAM and queue pressure.</p>
+        <p className="muted mt-1">Live CPU/RAM, queue pressure, and ComfyUI health.</p>
       </header>
       <div className="grid gap-4 md:grid-cols-3">
         <div className="panel">
@@ -31,6 +36,15 @@ export function Monitor() {
             {data ? `${data.queue_pending}/${data.queue_processing}` : "—"}
           </div>
         </div>
+      </div>
+      <div className="panel">
+        <h2 className="text-lg">ComfyUI</h2>
+        <p className="muted mt-2 text-sm">
+          enabled={String(comfy.data?.enabled ?? false)} · healthy=
+          {String(comfy.data?.healthy ?? false)} · process=
+          {String(comfy.data?.process_running ?? false)}
+        </p>
+        <p className="muted mt-1 text-xs">{comfy.data?.url}</p>
       </div>
       <div className="panel flex gap-3">
         <button className="btn secondary" onClick={() => pause.mutate()}>
