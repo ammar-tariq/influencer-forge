@@ -54,6 +54,7 @@ from forge_python.models import (
     ResetRequest,
     Schedule,
     ScheduleCreate,
+    SchedulePatch,
     SettingItem,
     SystemStats,
     VaultSetup,
@@ -1193,13 +1194,17 @@ async def list_schedules() -> list[Schedule]:
 
 @app.post("/api/schedules", response_model=Schedule)
 async def create_schedule(body: ScheduleCreate) -> Schedule:
+    from datetime import datetime, timezone
+
     svc = _require_schedules()
+    now = datetime.now(timezone.utc).astimezone()
+    next_dt = svc._compute_next(body.schedule_time, body.frequency, now)
     cur = await db.execute(
         """
         INSERT INTO schedules(
             influencer_id, schedule_time, frequency, cron_expression, prompt_template,
-            scene_suggestions, wardrobe_item_id, calendar_provider
-        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+            scene_suggestions, wardrobe_item_id, calendar_provider, next_trigger, is_active
+        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
         """,
         (
             body.influencer_id,
@@ -1210,11 +1215,43 @@ async def create_schedule(body: ScheduleCreate) -> Schedule:
             svc.dumps_scenes(body.scene_suggestions),
             body.wardrobe_item_id,
             body.calendar_provider,
+            next_dt.isoformat(sep=" ", timespec="seconds"),
         ),
     )
     sid = cur.lastrowid
     assert sid is not None
-    return Schedule(id=int(sid), **body.model_dump())
+    return Schedule(
+        id=int(sid),
+        **body.model_dump(),
+        is_active=True,
+        next_trigger=next_dt.isoformat(sep=" ", timespec="seconds"),
+    )
+
+
+@app.patch("/api/schedules/{schedule_id}", response_model=Schedule)
+async def patch_schedule(schedule_id: int, body: SchedulePatch) -> Schedule:
+    row = await db.fetchone("SELECT * FROM schedules WHERE id = ?", (schedule_id,))
+    if not row:
+        raise HTTPException(404, "Schedule not found")
+    if body.is_active is not None:
+        await db.execute(
+            "UPDATE schedules SET is_active = ? WHERE id = ?",
+            (1 if body.is_active else 0, schedule_id),
+        )
+    rows = await list_schedules()
+    for s in rows:
+        if s.id == schedule_id:
+            return s
+    raise HTTPException(404, "Schedule not found")
+
+
+@app.delete("/api/schedules/{schedule_id}")
+async def delete_schedule(schedule_id: int) -> dict[str, str]:
+    row = await db.fetchone("SELECT id FROM schedules WHERE id = ?", (schedule_id,))
+    if not row:
+        raise HTTPException(404, "Schedule not found")
+    await db.execute("DELETE FROM schedules WHERE id = ?", (schedule_id,))
+    return {"status": "deleted"}
 
 
 @app.get("/api/schedules/reminders")

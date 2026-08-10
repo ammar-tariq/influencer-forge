@@ -97,6 +97,23 @@ Orchestrator serves files from the app data `media/` folder at `http://127.0.0.1
 The UI never uses raw filesystem paths as `<img src>` — it maps them with `mediaUrl()`.
 Studio / Influencers cards use face seed / base portrait / latest generation. Generate polls the job and shows the result. Library and influencer profiles open full-size previews.
 
+## Scene polish (LLM)
+
+Image/video still run through local ComfyUI. Settings → **LLM provider** only rewrites the short scene text before the queue expands the full prompt:
+
+| Provider | Behavior |
+|----------|----------|
+| Local template | Offline expand (default) |
+| OpenAI | `gpt-4o-mini` enrich when `openai_api_key` is set; falls back to template on failure |
+| Claude / Gemini | Keys stored; not wired yet |
+
+Blank password fields in Settings keep the existing key.
+
+## Scheduler & Library edits
+
+- **Scheduler**: local reminders (`GET /api/reminders`); pause/resume/delete schedules; due items deep-link to Create post with the template in notes.
+- **Library**: image generations support rotate ±90°, watermark, and overlay via `POST /api/post-process` (writes `{id}_edited.png`).
+
 ## Dev: app “crashes” mid-generation
 
 If `npm run tauri dev` logs `File src-tauri/resources/comfyui/ComfyUI/temp changed. Rebuilding application…`, the desktop process is being **hot-reloaded**, not randomly crashing. ComfyUI writes into `temp/` while sampling; Tauri’s watcher used to treat that as a Rust source change.

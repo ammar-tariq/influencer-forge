@@ -23,6 +23,8 @@ export function History() {
   const [nsfw, setNsfw] = useState<"all" | "sfw" | "nsfw">("all");
   const [selected, setSelected] = useState<Generation | null>(null);
   const [deleteArmed, setDeleteArmed] = useState(false);
+  const [watermark, setWatermark] = useState("");
+  const [overlay, setOverlay] = useState("");
 
   useEffect(() => {
     const fromUrl = params.get("influencer");
@@ -52,6 +54,20 @@ export function History() {
       setSelected(null);
       setDeleteArmed(false);
       if (reveal.viewUnlocked) await reveal.endReveal();
+      await qc.invalidateQueries({ queryKey: ["generations"] });
+    },
+  });
+
+  const editPost = useMutation({
+    mutationFn: (body: {
+      generation_id: number;
+      rotate_degrees?: number;
+      watermark_text?: string;
+      overlay_text?: string;
+    }) => api.postProcess(body),
+    onSuccess: async (_out, vars) => {
+      const fresh = await api.getGeneration(vars.generation_id);
+      setSelected(fresh);
       await qc.invalidateQueries({ queryKey: ["generations"] });
     },
   });
@@ -277,6 +293,62 @@ export function History() {
                 </p>
               )}
             </div>
+            {selected.status === "completed" &&
+              !selected.is_vaulted &&
+              !selected.output_path?.match(/\.(mp4|webm|mov)$/i) && (
+                <div className="mt-4 space-y-2 border-t border-[var(--line)] pt-3">
+                  <p className="text-sm font-semibold">Edit image</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      className="btn secondary"
+                      disabled={editPost.isPending}
+                      onClick={() =>
+                        editPost.mutate({ generation_id: selected.id, rotate_degrees: -90 })
+                      }
+                    >
+                      Rotate left
+                    </button>
+                    <button
+                      className="btn secondary"
+                      disabled={editPost.isPending}
+                      onClick={() =>
+                        editPost.mutate({ generation_id: selected.id, rotate_degrees: 90 })
+                      }
+                    >
+                      Rotate right
+                    </button>
+                  </div>
+                  <div className="field">
+                    <label>Watermark</label>
+                    <input
+                      value={watermark}
+                      onChange={(e) => setWatermark(e.target.value)}
+                      placeholder="© your brand"
+                    />
+                  </div>
+                  <div className="field">
+                    <label>Top overlay</label>
+                    <input
+                      value={overlay}
+                      onChange={(e) => setOverlay(e.target.value)}
+                      placeholder="Optional caption"
+                    />
+                  </div>
+                  <button
+                    className="btn"
+                    disabled={editPost.isPending || (!watermark.trim() && !overlay.trim())}
+                    onClick={() =>
+                      editPost.mutate({
+                        generation_id: selected.id,
+                        watermark_text: watermark.trim() || undefined,
+                        overlay_text: overlay.trim() || undefined,
+                      })
+                    }
+                  >
+                    {editPost.isPending ? "Applying…" : "Apply text"}
+                  </button>
+                </div>
+              )}
           </>
         )}
       </ImageLightbox>

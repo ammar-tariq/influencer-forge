@@ -13,8 +13,10 @@ from forge_python.db import Database, body_from_json
 from forge_python.llm_manager import (
     build_looks_prompt,
     expand_prompt,
+    openai_enrich_scene,
     resolve_face_lock_path,
     resolve_negative_prompt,
+    resolve_provider_settings,
 )
 from forge_python.prompt_layers import ClothingConflictError, resolve_prompt_layers
 
@@ -192,12 +194,29 @@ class QueueWorker:
             for_nsfw=is_nsfw,
             face_locked=face_locked,
         ) or (looks or {}).get("base_prompt") or "person"
+        setting_rows = await self.db.fetchall("SELECT key, value FROM settings")
+        settings_map = {str(r["key"]): str(r["value"] or "") for r in setting_rows}
+        provider = resolve_provider_settings(settings_map)
+        scene_text = layers.scene
+        llm_used = "template"
+        if provider == "openai":
+            enriched = openai_enrich_scene(
+                scene_text,
+                api_key=settings_map.get("openai_api_key", ""),
+                system_prompt=(personality or {}).get("system_prompt"),
+            )
+            if enriched:
+                scene_text = enriched
+                llm_used = "openai"
+            else:
+                logger.info("OpenAI enrich unavailable — using template scene")
         expanded = expand_prompt(
-            layers.scene,
+            scene_text,
             influencer_name=(influencer or {}).get("name") or "Influencer",
             looks_prompt=str(looks_prompt),
             wardrobe_keywords=layers.wardrobe_keywords,
             system_prompt=(personality or {}).get("system_prompt"),
+            provider=provider if llm_used == "openai" else "template",
             is_nsfw=is_nsfw,
             face_locked=face_locked,
             clothing_from_wardrobe=layers.clothing_from_wardrobe,
@@ -212,10 +231,10 @@ class QueueWorker:
         await self.db.execute(
             """
             UPDATE generations
-            SET expanded_prompt = ?, negative_prompt = ?, is_nsfw = ?
+            SET expanded_prompt = ?, negative_prompt = ?, is_nsfw = ?, llm_used = ?
             WHERE id = ?
             """,
-            (expanded, negative, int(is_nsfw), generation_id),
+            (expanded, negative, int(is_nsfw), llm_used, generation_id),
         )
         require_real = self._require_real.get(generation_id, False)
         out, thumb, seed, model = await self.comfy.generate(

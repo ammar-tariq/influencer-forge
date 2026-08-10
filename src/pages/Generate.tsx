@@ -27,7 +27,11 @@ function nsfwBlocked(ageRating?: string | null) {
 
 export function Generate() {
   const location = useLocation();
-  const created = location.state as { createdId?: number; name?: string } | null;
+  const created = location.state as {
+    createdId?: number;
+    name?: string;
+    schedulePrompt?: string;
+  } | null;
   const qc = useQueryClient();
   const influencers = useQuery({ queryKey: ["influencers"], queryFn: api.listInfluencers });
   const personalities = useQuery({ queryKey: ["personalities"], queryFn: api.listPersonalities });
@@ -43,15 +47,24 @@ export function Generate() {
   const [dressingOther, setDressingOther] = useState("");
   const [setting, setSetting] = useState("studio");
   const [settingOther, setSettingOther] = useState("");
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState(created?.schedulePrompt ?? "");
   const [aspect, setAspect] = useState<"9:16" | "16:9" | "1:1">("9:16");
   const [workflow, setWorkflow] = useState<"image" | "video">("image");
   const [wardrobeId, setWardrobeId] = useState<number | "">("");
   const [nsfw, setNsfw] = useState(false);
   const [requireReal, setRequireReal] = useState(false);
   const [message, setMessage] = useState<string | null>(
-    created?.name ? `Created ${created.name}. Pick a scene below — full body is the default.` : null,
+    created?.schedulePrompt
+      ? "Schedule reminder loaded into notes — adjust the scene and generate."
+      : created?.name
+        ? `Created ${created.name}. Pick a scene below — full body is the default.`
+        : null,
   );
+
+  useEffect(() => {
+    if (created?.createdId) setInfluencerId(created.createdId);
+    if (created?.schedulePrompt) setNotes(created.schedulePrompt);
+  }, [created?.createdId, created?.schedulePrompt]);
   const [activeId, setActiveId] = useState<number | null>(null);
 
   const wardrobe = useQuery({

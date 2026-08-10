@@ -263,6 +263,10 @@ class VaultUnlock(BaseModel):
     pin: str
 
 
+class SchedulePatch(BaseModel):
+    is_active: bool | None = None
+
+
 class PostProcessRequest(BaseModel):
     generation_id: int
     rotate_degrees: int = 0

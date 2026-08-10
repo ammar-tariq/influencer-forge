@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Scheduler: pause/resume/delete, next_trigger on create, reminder → Create post deep-link (Dashboard + Scheduler).
+- OpenAI scene enrich when Settings → LLM provider is OpenAI (template fallback on failure).
+- Library lightbox image edits: rotate ±90, watermark, overlay via `POST /api/post-process`.
+- `npm run package` = assemble portable Python + `tauri build`.
+
 ### Fixed
 
 - Video: FaceID on by default at 12×384×640 (identity/gender); longer ~2s clip; don’t inject nude over clothed NSFW; queue “processing” only while a job runs; video autoplay muted.

@@ -9,6 +9,7 @@
     "lint": "eslint src --ext .ts,.tsx",
     "preview": "vite preview",
     "tauri": "tauri",
+    "package": "bash scripts/assemble-portable-python.sh && npm run tauri build",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
     "test": "vitest run",
     "test:watch": "vitest",

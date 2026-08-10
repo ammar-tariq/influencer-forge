@@ -247,9 +247,14 @@ export const api = {
   postProcess: (body: {
     generation_id: number;
     rotate_degrees?: number;
+    crop?: [number, number, number, number];
     watermark_text?: string;
     overlay_text?: string;
-  }) => request<{ output_path: string }>("/api/post-process", { method: "POST", body: JSON.stringify(body) }),
+  }) =>
+    request<{ output_path: string }>("/api/post-process", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 
   listSettings: () => request<SettingItem[]>("/api/settings"),
   putSetting: (key: string, value: string) =>
@@ -276,7 +281,22 @@ export const api = {
     prompt_template: string;
     cron_expression?: string;
   }) => request<Schedule>("/api/schedules", { method: "POST", body: JSON.stringify(body) }),
-  reminders: () => request<{ reminders: unknown[] }>("/api/schedules/reminders"),
+  patchSchedule: (id: number, body: { is_active?: boolean }) =>
+    request<Schedule>(`/api/schedules/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteSchedule: (id: number) =>
+    request<{ status: string }>(`/api/schedules/${id}`, { method: "DELETE" }),
+  reminders: () =>
+    request<{
+      reminders: Array<{
+        schedule_id?: number;
+        influencer_id?: number;
+        prompt_template?: string;
+        triggered_at?: string;
+      }>;
+    }>("/api/schedules/reminders"),
 
   vaultStatus: () => request<VaultStatus>("/api/vault/status"),
   vaultSetup: (pin: string) =>

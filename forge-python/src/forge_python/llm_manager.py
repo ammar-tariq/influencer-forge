@@ -434,7 +434,61 @@ def smart_daily_suggestions(niche: str, scenes: list[str] | None = None) -> list
 
 
 def resolve_provider_settings(settings_map: dict[str, Any]) -> str:
-    return str(settings_map.get("llm_provider", "local"))
+    return str(settings_map.get("llm_provider", "local") or "local").strip().lower()
+
+
+def openai_enrich_scene(
+    scene: str,
+    *,
+    api_key: str,
+    system_prompt: str | None = None,
+    timeout_s: float = 20.0,
+) -> str | None:
+    """Ask OpenAI to polish a short scene prompt. Returns None on any failure."""
+    key = (api_key or "").strip()
+    if not key or not scene.strip():
+        return None
+    try:
+        import httpx
+    except ImportError:
+        return None
+    persona = (system_prompt or "You write concise photorealistic image prompts.").strip()
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                f"{persona} Rewrite the user scene into one short comma-separated image prompt "
+                "(under 40 words). Keep clothing, pose, framing, and setting. No quotes."
+            ),
+        },
+        {"role": "user", "content": scene.strip()},
+    ]
+    try:
+        with httpx.Client(timeout=timeout_s) as client:
+            resp = client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "gpt-4o-mini",
+                    "temperature": 0.4,
+                    "messages": messages,
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            text = (
+                data.get("choices", [{}])[0]
+                .get("message", {})
+                .get("content", "")
+                .strip()
+                .strip('"')
+            )
+            return text or None
+    except Exception:
+        return None
 
 
 def strip_clothing_style(looks_prompt: str) -> str:

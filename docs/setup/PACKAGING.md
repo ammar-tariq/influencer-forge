@@ -34,6 +34,8 @@ Then build:
 
 ```bash
 npm run tauri build
+# one-shot assemble + build:
+npm run package
 # or rely on .github/workflows/build.yml (runs assemble before tauri-action)
 ```
 

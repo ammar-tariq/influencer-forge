@@ -6,6 +6,7 @@ from forge_python.llm_manager import (
     build_system_prompt,
     expand_prompt,
     gender_phrase,
+    openai_enrich_scene,
     prompt_implies_nsfw,
     prompt_requests_revealing_outfit,
     resolve_negative_prompt,
@@ -82,6 +83,10 @@ def test_nsfw_expansion_respects_full_body_scene() -> None:
     neg = resolve_negative_prompt(is_nsfw=True, user_prompt=scene)
     assert "shirt" in neg
     assert "cartoon" in neg
+
+
+def test_openai_enrich_requires_key() -> None:
+    assert openai_enrich_scene("beach stroll", api_key="") is None
 
 
 def test_nsfw_toggle_keeps_clothed_scene() -> None:

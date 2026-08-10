@@ -11,7 +11,11 @@ export function Dashboard() {
     queryKey: ["suggestions"],
     queryFn: () => api.suggestions("Lifestyle"),
   });
-  const reminders = useQuery({ queryKey: ["reminders"], queryFn: api.reminders });
+  const reminders = useQuery({
+    queryKey: ["reminders"],
+    queryFn: api.reminders,
+    refetchInterval: 20000,
+  });
   const vaultStatus = useQuery({ queryKey: ["vault-status"], queryFn: api.vaultStatus });
   const readiness = useQuery({ queryKey: ["readiness"], queryFn: api.readiness, refetchInterval: 8000 });
 
@@ -137,15 +141,29 @@ export function Dashboard() {
       </div>
 
       {(reminders.data?.reminders?.length ?? 0) > 0 && (
-        <div className="panel border-[var(--accent-2)]">
+        <div className="panel border-[var(--accent-2)] space-y-3">
           <h2 className="text-lg">Schedule reminders</h2>
-          <p className="muted mt-2 text-sm">
-            {reminders.data?.reminders.length} due —{" "}
-            <Link className="underline" to="/generate">
-              Generate now
-            </Link>
-            .
-          </p>
+          <p className="muted text-sm">{reminders.data!.reminders.length} due.</p>
+          {reminders.data!.reminders.slice(0, 3).map((r, idx) => (
+            <div key={`${r.schedule_id ?? idx}`} className="flex flex-wrap items-center gap-3">
+              <p className="text-sm min-w-0 flex-1 line-clamp-2">
+                {(r.prompt_template || "Scheduled post").slice(0, 100)}
+              </p>
+              <Link
+                className="btn"
+                to="/generate"
+                state={{
+                  createdId: r.influencer_id,
+                  schedulePrompt: r.prompt_template,
+                }}
+              >
+                Create post
+              </Link>
+            </div>
+          ))}
+          <Link className="btn secondary inline-block text-sm" to="/scheduler">
+            Open scheduler
+          </Link>
         </div>
       )}
     </div>

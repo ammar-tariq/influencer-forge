@@ -25,18 +25,26 @@ export function Settings() {
   const [includeModels, setIncludeModels] = useState(false);
   const [armed, setArmed] = useState(false);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   const confirmOk = confirmText.trim().toUpperCase() === "RESET";
 
   const save = useMutation({
     mutationFn: async (form: FormData) => {
       await api.putSetting("llm_provider", String(form.get("llm_provider") ?? "local"));
-      await api.putSetting("openai_api_key", String(form.get("openai_api_key") ?? ""));
-      await api.putSetting("anthropic_api_key", String(form.get("anthropic_api_key") ?? ""));
-      await api.putSetting("gemini_api_key", String(form.get("gemini_api_key") ?? ""));
-      await api.putSetting("image_model", "stub_or_sdxl");
+      // Blank password fields mean "keep existing" — never wipe keys by accident.
+      const openai = String(form.get("openai_api_key") ?? "").trim();
+      const anthropic = String(form.get("anthropic_api_key") ?? "").trim();
+      const gemini = String(form.get("gemini_api_key") ?? "").trim();
+      if (openai) await api.putSetting("openai_api_key", openai);
+      if (anthropic) await api.putSetting("anthropic_api_key", anthropic);
+      if (gemini) await api.putSetting("gemini_api_key", gemini);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["settings"] }),
+    onSuccess: () => {
+      setSaveMessage("Settings saved on this machine.");
+      void qc.invalidateQueries({ queryKey: ["settings"] });
+    },
+    onError: (err: Error) => setSaveMessage(err.message),
   });
 
   const reset = useMutation({
@@ -115,34 +123,59 @@ export function Settings() {
         }}
       >
         <h2 className="mb-3 text-lg">Model providers</h2>
+        <p className="muted mb-3 text-sm">
+          Image/video still run through local ComfyUI. LLM provider only polishes the scene text before
+          generation. <strong>OpenAI</strong> is live; Claude/Gemini keys are stored for later.
+        </p>
         <div className="field">
           <label>LLM provider</label>
           <select name="llm_provider" defaultValue={map.llm_provider ?? "local"} key={map.llm_provider ?? "local"}>
-            <option value="local">Local (template / llama)</option>
-            <option value="openai">OpenAI</option>
-            <option value="claude">Claude</option>
-            <option value="gemini">Gemini</option>
+            <option value="local">Local template (offline)</option>
+            <option value="openai">OpenAI (gpt-4o-mini scene enrich)</option>
+            <option value="claude">Claude (stored — not wired yet)</option>
+            <option value="gemini">Gemini (stored — not wired yet)</option>
           </select>
         </div>
         <div className="field">
           <label>OpenAI API key</label>
-          <input name="openai_api_key" defaultValue={map.openai_api_key ?? ""} key={`o-${map.openai_api_key ?? ""}`} />
+          <input
+            name="openai_api_key"
+            type="password"
+            autoComplete="off"
+            placeholder={map.openai_api_key ? "•••••••• (saved)" : "sk-…"}
+            defaultValue=""
+            key={`o-${map.openai_api_key ? "set" : "empty"}`}
+          />
+          <p className="muted mt-1 text-xs">
+            Leave blank to keep the existing key. Keys stay in local SQLite only.
+          </p>
         </div>
         <div className="field">
           <label>Anthropic API key</label>
           <input
             name="anthropic_api_key"
-            defaultValue={map.anthropic_api_key ?? ""}
-            key={`a-${map.anthropic_api_key ?? ""}`}
+            type="password"
+            autoComplete="off"
+            placeholder={map.anthropic_api_key ? "•••••••• (saved)" : ""}
+            defaultValue=""
+            key={`a-${map.anthropic_api_key ? "set" : "empty"}`}
           />
         </div>
         <div className="field">
           <label>Gemini API key</label>
-          <input name="gemini_api_key" defaultValue={map.gemini_api_key ?? ""} key={`g-${map.gemini_api_key ?? ""}`} />
+          <input
+            name="gemini_api_key"
+            type="password"
+            autoComplete="off"
+            placeholder={map.gemini_api_key ? "•••••••• (saved)" : ""}
+            defaultValue=""
+            key={`g-${map.gemini_api_key ? "set" : "empty"}`}
+          />
         </div>
-        <button className="btn" type="submit">
-          Save settings
+        <button className="btn" type="submit" disabled={save.isPending}>
+          {save.isPending ? "Saving…" : "Save settings"}
         </button>
+        {saveMessage && <p className="mt-3 text-sm text-[var(--accent-2)]">{saveMessage}</p>}
       </form>
 
       <div className="panel border-[color-mix(in_srgb,var(--danger)_35%,var(--line))]">
