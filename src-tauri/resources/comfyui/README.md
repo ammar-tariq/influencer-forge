@@ -104,14 +104,25 @@ IP-Adapter FaceID is the primary identity path. InstantID is an optional alterna
 
 ## NSFW LoRAs (optional)
 
-When NSFW is enabled, the orchestrator injects a `LoraLoader` if a LoRA whose filename contains `nsfw`, `nude`, or `explicit` exists under `ComfyUI/models/loras/`. Adult weights are **not** shipped in git — provide your own:
+When NSFW is enabled, the orchestrator injects a `LoraLoader` if a LoRA whose filename contains `nsfw`, `nude`, or `explicit` exists under `ComfyUI/models/loras/`. Adult weights are **not** shipped in git — download your own.
+
+**Recommended (SDXL character LoRA):**
+
+1. Download the `.safetensors` from  
+   https://huggingface.co/Muapi/fanvue-onlyfans-ai-model-woman033-nsfw-photorealistic-character-lora-sdxl-sd1.5  
+2. Install:
+   ```bash
+   ./scripts/install-nsfw-lora.sh ~/Downloads/fanvue-onlyfans-ai-model-woman033-nsfw-photorealistic-character-lora-sdxl-sd1.5.safetensors
+   ```
+
+Or any other SDXL LoRA:
 
 ```bash
 ./scripts/install-nsfw-lora.sh /path/to/your_nsfw_lora.safetensors
 # or: IFORGE_NSFW_LORA_URL='https://…/foo_nsfw.safetensors' ./scripts/install-nsfw-lora.sh
 ```
 
-Without a LoRA, NSFW still uses prompt + denoise ramps.
+Character LoRAs may tug against Face Seed identity. Without a LoRA, NSFW still uses prompt + denoise ramps. Adult (or 18+) rating + looks age ≥ 18 required; Family/Teen blocked.
 
 ## Apple Silicon / macOS notes
 

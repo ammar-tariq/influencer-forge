@@ -316,6 +316,21 @@ def test_youth_looks_keep_height_drop_adult_body() -> None:
     assert "large breasts" in neg
 
 
+def test_very_short_height_survives_adult_looks() -> None:
+    looks = build_looks_prompt(
+        age=24,
+        ethnicity="Caucasian",
+        hair_color="Brown",
+        hair_style="Long",
+        eye_color="Blue",
+        style="Casual",
+        gender="Female",
+        body={"height": 'Very short (under 4\'11" / 150cm)', "body_type": "Slim"},
+    )
+    assert "Very short" in looks
+    assert "4'11" in looks or "150cm" in looks
+
+
 def test_face_locked_looks_body_only() -> None:
     """Face Seed owns face/hair/ethnicity — text keeps body sliders only."""
     locked = build_looks_prompt(

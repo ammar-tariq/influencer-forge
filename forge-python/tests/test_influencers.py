@@ -349,3 +349,114 @@ async def test_generation_batch_queues_distinct_null_seeds(client: AsyncClient) 
         assert enqueued == ids
     finally:
         orch.queue = None
+
+
+async def _create_influencer_rated(
+    client: AsyncClient,
+    *,
+    name: str,
+    age_rating: str,
+    looks_age: int = 24,
+) -> int:
+    personality = await client.post(
+        "/api/personalities",
+        json={
+            "name": name,
+            "bio": "Test",
+            "traits": {},
+            "niche": "Lifestyle",
+            "age_rating": age_rating,
+        },
+    )
+    assert personality.status_code == 200
+    looks = await client.post(
+        "/api/looks",
+        json={
+            "name": f"{name} look",
+            "age": looks_age,
+            "gender": "Female",
+            "body": {"height": 'Very short (under 4\'11" / 150cm)'},
+        },
+    )
+    assert looks.status_code == 200
+    inf = await client.post(
+        "/api/influencers",
+        json={
+            "personality_id": personality.json()["id"],
+            "looks_id": looks.json()["id"],
+            "name": name,
+        },
+    )
+    assert inf.status_code == 200
+    return int(inf.json()["id"])
+
+
+@pytest.mark.asyncio
+async def test_nsfw_adult_allowed_teen_blocked(client: AsyncClient) -> None:
+    import forge_python.orchestrator as orch
+    from forge_python.orchestrator import db
+
+    class _QuietQueue:
+        async def enqueue(self, generation_id: int, *, require_real: bool = False) -> None:
+            await db.execute(
+                "UPDATE generations SET status = 'queued' WHERE id = ?",
+                (generation_id,),
+            )
+
+    orch.queue = _QuietQueue()  # type: ignore[assignment]
+    try:
+        adult_id = await _create_influencer_rated(client, name="AdultNSFW", age_rating="Adult")
+        ok = await client.post(
+            "/api/generations",
+            json={
+                "influencer_id": adult_id,
+                "user_prompt": "full body nude studio",
+                "is_nsfw": True,
+                "workflow_type": "image",
+            },
+        )
+        assert ok.status_code == 200, ok.text
+        assert ok.json()["is_nsfw"] is True
+
+        teen_id = await _create_influencer_rated(client, name="TeenNSFW", age_rating="Teen")
+        blocked = await client.post(
+            "/api/generations",
+            json={
+                "influencer_id": teen_id,
+                "user_prompt": "full body nude studio",
+                "is_nsfw": True,
+                "workflow_type": "image",
+            },
+        )
+        assert blocked.status_code == 400
+        assert "Adult" in blocked.text
+    finally:
+        orch.queue = None
+
+
+@pytest.mark.asyncio
+async def test_nsfw_blocked_when_looks_under_18(client: AsyncClient) -> None:
+    import forge_python.orchestrator as orch
+
+    class _QuietQueue:
+        async def enqueue(self, generation_id: int, *, require_real: bool = False) -> None:
+            return None
+
+    orch.queue = _QuietQueue()  # type: ignore[assignment]
+    try:
+        iid = await _create_influencer_rated(
+            client, name="YoungLooks", age_rating="Adult", looks_age=17
+        )
+        resp = await client.post(
+            "/api/generations",
+            json={
+                "influencer_id": iid,
+                "user_prompt": "full body nude studio",
+                "is_nsfw": True,
+                "workflow_type": "image",
+            },
+        )
+        assert resp.status_code == 400
+        assert "18" in resp.text
+    finally:
+        orch.queue = None

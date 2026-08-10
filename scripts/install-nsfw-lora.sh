@@ -17,8 +17,13 @@ Usage:
   # or:
   IFORGE_NSFW_LORA_URL='https://…/something_nsfw.safetensors' ./scripts/install-nsfw-lora.sh
 
+Recommended SDXL LoRA (download yourself — not in git):
+  https://huggingface.co/Muapi/fanvue-onlyfans-ai-model-woman033-nsfw-photorealistic-character-lora-sdxl-sd1.5
+  Then:
+  ./scripts/install-nsfw-lora.sh ~/Downloads/fanvue-onlyfans-ai-model-woman033-nsfw-photorealistic-character-lora-sdxl-sd1.5.safetensors
+
 The filename must contain nsfw, nude, or explicit (case-insensitive) so the
-orchestrator picks it up for NSFW jobs.
+orchestrator picks it up for NSFW jobs. Must be an SDXL LoRA (not Flux).
 EOF
   exit 1
 fi

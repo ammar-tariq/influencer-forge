@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Wizard height option **Very short (under 4'11" / 150cm)** below Petite.
+- Docs/readiness/install script point users to download the recommended SDXL NSFW LoRA (Muapi woman033) — weights stay out of git.
 - Wav2Lip talking-head path (`scripts/install-wav2lip.sh` + ComfyUI node) with ffmpeg still+audio fallback.
 - Google Calendar OAuth sync (`Settings` client id/secret → Connect → Scheduler Sync to Google); Apple remains ICS export.
 - Bootstrap manifest v2: optional SDXL base + Wav2Lip gan URLs; downloads mirror into ComfyUI `models/`.
@@ -40,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- NSFW: **Adult** rating is enough (same as 18+) for the Generate toggle default; Family/Teen still blocked; looks age must be 18+ for explicit jobs.
 - Prompt override contract: wardrobe XOR dressing; strip clothing from notes when wardrobe is set; block nude+wardrobe; stop rogue `nude` inject; `identity_explore` skips face refs on setup batches; create-post keeps face+body fixed (hybrid looks).
 - System monitor cards (CPU/RAM/queue, ComfyUI, pause/resume) live under Settings; `/monitor` redirects there.
 - Privacy vault is a sidebar switch (PIN on enable) instead of a full `/vault` page; vaulted NSFW hides when off and shows blur teasers in Library/profile when on.

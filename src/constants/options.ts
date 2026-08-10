@@ -114,6 +114,7 @@ export const SKIN_TONES = [
 ] as const;
 
 export const HEIGHTS = [
+  "Very short (under 4'11\" / 150cm)",
   "Petite (under 5'3\" / 160cm)",
   "Average (5'4\"–5'7\" / 163–170cm)",
   "Tall (5'8\"–5'11\" / 173–180cm)",

@@ -320,9 +320,10 @@ async def collect_readiness(comfy: ComfyUIClient | None = None) -> dict[str, Any
             "ok": nsfw_lora is not None,
             "detail": str(nsfw_lora) if nsfw_lora else "none — NSFW still uses prompt + denoise ramp",
             "fix": (
-                "./scripts/install-nsfw-lora.sh /path/to/your_nsfw_lora.safetensors "
-                f"(dest: {settings.comfyui_root / 'models' / 'loras'}). "
-                "Filename must contain nsfw, nude, or explicit."
+                "Download SDXL LoRA from "
+                "https://huggingface.co/Muapi/fanvue-onlyfans-ai-model-woman033-nsfw-photorealistic-character-lora-sdxl-sd1.5 "
+                "then ./scripts/install-nsfw-lora.sh ~/Downloads/<file>.safetensors "
+                f"(dest: {settings.comfyui_root / 'models' / 'loras'})."
             ),
         },
     ]

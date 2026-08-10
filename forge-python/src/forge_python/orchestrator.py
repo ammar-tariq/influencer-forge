@@ -811,6 +811,35 @@ async def delete_generation(generation_id: int) -> dict[str, Any]:
 _SEED_FROM_BODY = object()
 
 
+def _assert_nsfw_allowed(
+    *,
+    is_nsfw: bool,
+    age_rating: str | None,
+    looks: Any,
+) -> None:
+    """Family/Teen ratings and looks under 18 cannot enqueue explicit jobs. Adult is enough."""
+    if not is_nsfw:
+        return
+    rating = age_rating or "Family"
+    if rating in ("Family", "Teen"):
+        raise HTTPException(
+            400,
+            "Explicit / NSFW requires an Adult (or 18+) age rating on the influencer. "
+            "Family and Teen ratings are blocked.",
+        )
+    looks_age = None if looks is None else looks.get("age")
+    if looks_age is not None:
+        try:
+            age_int = int(looks_age)
+        except (TypeError, ValueError):
+            age_int = None
+        if age_int is not None and age_int < 18:
+            raise HTTPException(
+                400,
+                "Explicit / NSFW requires the influencer looks age to be 18 or older.",
+            )
+
+
 async def _enqueue_generation(
     body: GenerationCreate,
     *,
@@ -850,11 +879,7 @@ async def _enqueue_generation(
     except ClothingConflictError as exc:
         raise HTTPException(400, str(exc)) from exc
     is_nsfw = layers.is_nsfw
-    if is_nsfw and age_rating in ("Family", "Teen"):
-        raise HTTPException(
-            400,
-            "Explicit / NSFW generation requires an Adult or 18+ age rating on the influencer.",
-        )
+    _assert_nsfw_allowed(is_nsfw=is_nsfw, age_rating=age_rating, looks=looks)
     # Identity explore: selected traits only, no face-reference lock in the text stack.
     # Create-post with a lock: hybrid looks (body kept; hair/eyes from reference).
     has_face_ref = resolve_face_lock_path(looks) is not None
@@ -1072,8 +1097,7 @@ async def replace_generation(generation_id: int, body: GenerationReplace) -> Gen
     except ClothingConflictError as exc:
         raise HTTPException(400, str(exc)) from exc
     is_nsfw = layers.is_nsfw
-    if is_nsfw and age_rating in ("Family", "Teen"):
-        raise HTTPException(400, "Explicit / NSFW requires Adult or 18+ age rating")
+    _assert_nsfw_allowed(is_nsfw=is_nsfw, age_rating=age_rating, looks=looks)
 
     face_locked = resolve_face_lock_path(looks) is not None
     looks_prompt = build_looks_prompt(

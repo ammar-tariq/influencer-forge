@@ -139,7 +139,7 @@ export function Generate() {
       setNsfw(false);
       return;
     }
-    if (ageRating === "18+") {
+    if (ageRating === "Adult" || ageRating === "18+") {
       setNsfw(true);
     }
   }, [selected?.id, ageRating]);
@@ -510,6 +510,9 @@ export function Generate() {
             />
             NSFW / explicit mode
             {selected && ageRating && <span className="muted">· rating {ageRating}</span>}
+            {selected && !nsfwAllowed && (
+              <span className="muted">· needs Adult or 18+ rating</span>
+            )}
           </label>
           <label className="mb-4 flex items-center gap-2 text-sm">
             <input

@@ -75,14 +75,28 @@ Bikini/lingerie prompts no longer auto-append `nude` or ban the outfit in negati
 
 ## Explicit / NSFW generations
 
-For Adult or **18+** influencers:
+For **Adult** or **18+** influencers (Adult alone is enough — you do not need the separate 18+ rating):
 
-1. Open **Generate**, select the influencer (NSFW mode defaults on for `18+`).
+1. Open **Generate**, select the influencer (NSFW mode defaults on for Adult and 18+).
 2. Enable **NSFW / explicit mode** (or use words like `topless` / `nude` in the prompt).
 3. Prefer waist-up / full-body phrasing — face-only “portrait” framing hides the body.
 4. Leave Wardrobe empty (skipped automatically in NSFW mode).
 
-The pipeline then uses adult framing + clothing negatives. RealVisXL can still refuse some scenes; stronger wording and re-rolls help. Family/Teen ratings block NSFW.
+**Blocked:** Family / Teen age ratings, and looks age under 18.
+
+The pipeline then uses adult framing + clothing negatives, and injects an NSFW LoRA when present under `ComfyUI/models/loras/` (filename must contain `nsfw`, `nude`, or `explicit`).
+
+**Recommended LoRA (download yourself — not in git):**
+
+1. Download the SDXL `.safetensors` from  
+   [Muapi fanvue woman033 NSFW photorealistic character LoRA (SDXL)](https://huggingface.co/Muapi/fanvue-onlyfans-ai-model-woman033-nsfw-photorealistic-character-lora-sdxl-sd1.5)
+2. Install:
+   ```bash
+   ./scripts/install-nsfw-lora.sh ~/Downloads/fanvue-onlyfans-ai-model-woman033-nsfw-photorealistic-character-lora-sdxl-sd1.5.safetensors
+   ```
+   Note: this is a **character** LoRA — it can tug against Face Seed identity. Prefer a generic NSFW body LoRA if you need strict face lock.
+
+RealVisXL can still refuse some scenes; stronger wording and re-rolls help.
 
 ### Privacy Vault
 
@@ -140,7 +154,7 @@ Create post → **Video**:
 - Face Seed + FaceID on by default at 384×640; if FaceID weights/nodes are missing, the job **fails** unless you set `IFORGE_VIDEO_FACEID=0` (identity may drift).
 - No Pillow stub for video/lip_sync (avoids fake “completed” PNGs).
 - Talking head prefers Wav2Lip after `./scripts/install-wav2lip.sh` + ComfyUI restart; otherwise ffmpeg face+audio mux.
-- NSFW generations inject a matching LoRA from `models/loras/` when the filename contains nsfw/nude/explicit.
+- NSFW generations inject a matching LoRA from `models/loras/` when the filename contains nsfw/nude/explicit (see recommended download above).
 
 ## Talking head (lip-sync)
 
