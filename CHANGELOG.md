@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Google Calendar OAuth sync (`Settings` client id/secret → Connect → Scheduler Sync to Google); Apple remains ICS export.
 - Bootstrap manifest v2: optional SDXL base + Wav2Lip gan URLs; downloads mirror into ComfyUI `models/`.
 - System monitor GPU/VRAM via `nvidia-smi` (Apple Silicon labeled MPS); NSFW LoRA auto-inject; InstantID readiness item.
+- `scripts/install-instantid.sh` + `scripts/install-nsfw-lora.sh`; InstantID readiness requires node + InstantX weights.
 - Library drag-to-crop preview; cross-platform release checklist (`docs/setup/RELEASE_VALIDATION.md`).
 - Talking-head workflow (`lip_sync`): audio upload + ffmpeg face/audio mux to `.mp4`.
 - Local GGUF scene enrich (optional `llama-cpp-python` + `models/llm/*.gguf` or Settings path); Llama 3.2 1B bootstrap entry.

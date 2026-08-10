@@ -95,16 +95,23 @@ Readiness item `talking_head` turns green when ffmpeg is available and/or Wav2Li
 
 ## InstantID (optional)
 
-IP-Adapter FaceID is the primary identity path. InstantID is tracked as an optional readiness check only:
+IP-Adapter FaceID is the primary identity path. InstantID is an optional alternate (node + weights; not wired as the default generate path yet):
 
 ```bash
-cd ComfyUI/custom_nodes
-git clone https://github.com/instantX-research/ComfyUI_InstantID.git
+./scripts/install-instantid.sh   # clones cubiq/ComfyUI_InstantID + InstantX weights + antelopev2
+# Restart ComfyUI afterward
 ```
 
 ## NSFW LoRAs (optional)
 
-When NSFW is enabled, the orchestrator injects a `LoraLoader` if a LoRA whose filename contains `nsfw`, `nude`, or `explicit` exists under `ComfyUI/models/loras/`. Without a LoRA, NSFW still uses prompt + denoise ramps.
+When NSFW is enabled, the orchestrator injects a `LoraLoader` if a LoRA whose filename contains `nsfw`, `nude`, or `explicit` exists under `ComfyUI/models/loras/`. Adult weights are **not** shipped in git — provide your own:
+
+```bash
+./scripts/install-nsfw-lora.sh /path/to/your_nsfw_lora.safetensors
+# or: IFORGE_NSFW_LORA_URL='https://…/foo_nsfw.safetensors' ./scripts/install-nsfw-lora.sh
+```
+
+Without a LoRA, NSFW still uses prompt + denoise ramps.
 
 ## Apple Silicon / macOS notes
 

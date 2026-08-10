@@ -156,6 +156,37 @@ def instantid_custom_node_installed() -> bool:
     return any(p.is_dir() and "instantid" in p.name.lower() for p in root.iterdir())
 
 
+def instantid_weights_present() -> dict[str, Any]:
+    """InstantX ip-adapter + ControlNet + InsightFace antelopev2."""
+    ipa = find_named_model("ip-adapter.bin", "instantid")
+    if ipa is None:
+        ipa = find_named_model("ip-adapter.bin")
+    controlnet: Path | None = None
+    cn_roots = [
+        settings.comfyui_root / "models" / "controlnet",
+        settings.models_dir / "controlnet",
+    ]
+    for root in cn_roots:
+        if not root.is_dir():
+            continue
+        for path in sorted(root.glob("*.safetensors")) + sorted(root.glob("**/*.safetensors")):
+            name = path.name.lower()
+            if "instantid" in name or "instant_id" in name:
+                if path.stat().st_size > 10_000_000:
+                    controlnet = path
+                    break
+        if controlnet:
+            break
+    antelope = settings.comfyui_root / "models" / "insightface" / "models" / "antelopev2"
+    antelope_ok = antelope.is_dir() and any(antelope.glob("*.onnx"))
+    return {
+        "ok": bool(ipa and controlnet and antelope_ok),
+        "ipadapter": str(ipa) if ipa else None,
+        "controlnet": str(controlnet) if controlnet else None,
+        "antelopev2": str(antelope) if antelope_ok else None,
+    }
+
+
 async def collect_readiness(comfy: ComfyUIClient | None = None) -> dict[str, Any]:
     client = comfy or ComfyUIClient()
     comfy_installed = (settings.comfyui_root / "main.py").exists()
@@ -170,13 +201,16 @@ async def collect_readiness(comfy: ComfyUIClient | None = None) -> dict[str, Any
     ad_node = animatediff_custom_node_installed()
     motion = find_motion_module()
     w2l_ok = wav2lip_ready()
-    instantid_ok = instantid_custom_node_installed()
+    instantid_node = instantid_custom_node_installed()
+    instantid_w = instantid_weights_present()
+    instantid_ok = instantid_node and instantid_w["ok"]
     nsfw_lora = find_nsfw_lora()
     node_types: set[str] = set()
     if healthy:
         node_types = await client.object_info_class_types()
     faceid_nodes_live = {"IPAdapterFaceID", "IPAdapterModelLoader"}.issubset(node_types) if node_types else False
     wav2lip_live = "Wav2Lip" in node_types if node_types else False
+    instantid_live = any("instantid" in t.lower() for t in node_types) if node_types else False
     checklist = [
         {
             "id": "comfyui_source",
@@ -267,12 +301,17 @@ async def collect_readiness(comfy: ComfyUIClient | None = None) -> dict[str, Any
         },
         {
             "id": "instantid",
-            "label": "InstantID custom node (optional alternate identity)",
+            "label": "InstantID (optional alternate identity)",
             "ok": instantid_ok,
-            "detail": "installed" if instantid_ok else "not installed — IP-Adapter FaceID is the primary path",
+            "detail": (
+                f"node={'live' if instantid_live else ('yes' if instantid_node else 'no')}; "
+                f"ipa={instantid_w['ipadapter'] or 'missing'}; "
+                f"cn={instantid_w['controlnet'] or 'missing'}; "
+                f"antelope={instantid_w['antelopev2'] or 'missing'}"
+            ),
             "fix": (
-                "Optional: git clone ComfyUI_InstantID under custom_nodes/. "
-                "App generation uses IP-Adapter FaceID / img2img today."
+                "./scripts/install-instantid.sh then restart ComfyUI. "
+                "App generation still prefers IP-Adapter FaceID / img2img."
             ),
         },
         {
@@ -281,8 +320,9 @@ async def collect_readiness(comfy: ComfyUIClient | None = None) -> dict[str, Any
             "ok": nsfw_lora is not None,
             "detail": str(nsfw_lora) if nsfw_lora else "none — NSFW still uses prompt + denoise ramp",
             "fix": (
-                "Place a LoRA with nsfw/nude in the filename under "
-                f"{settings.comfyui_root / 'models' / 'loras'}."
+                "./scripts/install-nsfw-lora.sh /path/to/your_nsfw_lora.safetensors "
+                f"(dest: {settings.comfyui_root / 'models' / 'loras'}). "
+                "Filename must contain nsfw, nude, or explicit."
             ),
         },
     ]
@@ -313,6 +353,7 @@ async def collect_readiness(comfy: ComfyUIClient | None = None) -> dict[str, Any
         "wav2lip_ready": w2l_ok,
         "wav2lip_live": wav2lip_live,
         "instantid_ready": instantid_ok,
+        "instantid_weights": instantid_w,
         "nsfw_lora": str(nsfw_lora) if nsfw_lora else None,
         "checklist": checklist,
         "summary": (
