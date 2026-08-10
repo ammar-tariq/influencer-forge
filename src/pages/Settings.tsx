@@ -125,15 +125,15 @@ export function Settings() {
         <h2 className="mb-3 text-lg">Model providers</h2>
         <p className="muted mb-3 text-sm">
           Image/video still run through local ComfyUI. LLM provider only polishes the scene text before
-          generation. <strong>OpenAI</strong> is live; Claude/Gemini keys are stored for later.
+          generation. OpenAI, Claude, and Gemini are live; failures fall back to the local template.
         </p>
         <div className="field">
           <label>LLM provider</label>
           <select name="llm_provider" defaultValue={map.llm_provider ?? "local"} key={map.llm_provider ?? "local"}>
             <option value="local">Local template (offline)</option>
             <option value="openai">OpenAI (gpt-4o-mini scene enrich)</option>
-            <option value="claude">Claude (stored — not wired yet)</option>
-            <option value="gemini">Gemini (stored — not wired yet)</option>
+            <option value="claude">Claude (Haiku scene enrich)</option>
+            <option value="gemini">Gemini (Flash scene enrich)</option>
           </select>
         </div>
         <div className="field">

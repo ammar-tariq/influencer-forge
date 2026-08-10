@@ -1,11 +1,16 @@
 import pytest
 
 from forge_python.config import settings
+import httpx
+
 from forge_python.llm_manager import (
     build_looks_prompt,
     build_system_prompt,
+    claude_enrich_scene,
+    enrich_scene_for_provider,
     expand_prompt,
     gender_phrase,
+    gemini_enrich_scene,
     openai_enrich_scene,
     prompt_implies_nsfw,
     prompt_requests_revealing_outfit,
@@ -87,6 +92,75 @@ def test_nsfw_expansion_respects_full_body_scene() -> None:
 
 def test_openai_enrich_requires_key() -> None:
     assert openai_enrich_scene("beach stroll", api_key="") is None
+
+
+def test_claude_and_gemini_enrich_require_key() -> None:
+    assert claude_enrich_scene("beach stroll", api_key="") is None
+    assert gemini_enrich_scene("beach stroll", api_key="") is None
+
+
+def test_claude_enrich_success(monkeypatch) -> None:
+    class FakeResp:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {"content": [{"type": "text", "text": "soft daylight, coastal walk"}]}
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args) -> None:
+            return None
+
+        def post(self, *args, **kwargs):
+            return FakeResp()
+
+    monkeypatch.setattr(httpx, "Client", FakeClient)
+    assert claude_enrich_scene("beach", api_key="sk-ant-test") == "soft daylight, coastal walk"
+
+
+def test_gemini_enrich_success(monkeypatch) -> None:
+    class FakeResp:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {
+                "candidates": [
+                    {"content": {"parts": [{"text": "golden hour, boardwalk stroll"}]}}
+                ]
+            }
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args) -> None:
+            return None
+
+        def post(self, *args, **kwargs):
+            return FakeResp()
+
+    monkeypatch.setattr(httpx, "Client", FakeClient)
+    assert gemini_enrich_scene("beach", api_key="gem-test") == "golden hour, boardwalk stroll"
+
+
+def test_enrich_scene_for_provider_routes_keys() -> None:
+    text, used = enrich_scene_for_provider(
+        "claude",
+        "scene",
+        settings_map={"anthropic_api_key": ""},
+    )
+    assert text is None
+    assert used == "template"
 
 
 def test_nsfw_toggle_keeps_clothed_scene() -> None:

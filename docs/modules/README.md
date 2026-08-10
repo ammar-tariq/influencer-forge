@@ -8,7 +8,7 @@
 | Face Seed | `face_seed.py` + `image_img2img.json` | Fingerprint + img2img identity lock (InstantID later) |
 | Model bootstrap | `model_downloader.py` + `resources/bootstrap/models.json` | Resumable downloads when enabled |
 | Full reset | `reset.py` + `POST /api/system/reset` | Wipes app data; never touches hfModels/ComfyUI |
-| LLM expand | `llm_manager.py` | Template-first |
+| LLM expand | `llm_manager.py` | Template-first; OpenAI/Claude/Gemini enrich |
 | Vault | `vault.py` | Argon2id + AES-GCM; wipe cleartext; teaser gallery + reveal API |
 | Scheduler | `scheduler.py` | APScheduler reminders |
 | System monitor | `system_monitor.py` | psutil |

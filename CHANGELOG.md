@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- System tray Pause/Resume queue wired to orchestrator via Tauri events.
+- Claude (Haiku) and Gemini (Flash) scene enrich alongside OpenAI; template fallback on failure.
+- Library lightbox crop: 10%/20% margin presets + numeric x1,y1,x2,y2.
 - Scheduler: pause/resume/delete, next_trigger on create, reminder → Create post deep-link (Dashboard + Scheduler).
 - OpenAI scene enrich when Settings → LLM provider is OpenAI (template fallback on failure).
 - Library lightbox image edits: rotate ±90, watermark, overlay via `POST /api/post-process`.

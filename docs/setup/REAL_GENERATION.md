@@ -105,14 +105,19 @@ Image/video still run through local ComfyUI. Settings → **LLM provider** only 
 |----------|----------|
 | Local template | Offline expand (default) |
 | OpenAI | `gpt-4o-mini` enrich when `openai_api_key` is set; falls back to template on failure |
-| Claude / Gemini | Keys stored; not wired yet |
+| Claude | Anthropic Haiku enrich when `anthropic_api_key` is set; falls back to template |
+| Gemini | Gemini Flash enrich when `gemini_api_key` is set; falls back to template |
 
 Blank password fields in Settings keep the existing key.
+
+## System tray
+
+Desktop builds expose a tray menu (Show / Pause queue / Resume queue / Quit). Pause and Resume emit Tauri events that the React shell maps to `POST /api/queue/pause` and `/api/queue/resume`.
 
 ## Scheduler & Library edits
 
 - **Scheduler**: local reminders (`GET /api/reminders`); pause/resume/delete schedules; due items deep-link to Create post with the template in notes.
-- **Library**: image generations support rotate ±90°, watermark, and overlay via `POST /api/post-process` (writes `{id}_edited.png`).
+- **Library**: image generations support rotate ±90°, margin/numeric crop, watermark, and overlay via `POST /api/post-process` (writes `{id}_edited.png`).
 
 ## Dev: app “crashes” mid-generation
 

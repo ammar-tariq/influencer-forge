@@ -12,8 +12,8 @@ from forge_python.comfyui_client import ComfyUIClient, _video_faceid_enabled
 from forge_python.db import Database, body_from_json
 from forge_python.llm_manager import (
     build_looks_prompt,
+    enrich_scene_for_provider,
     expand_prompt,
-    openai_enrich_scene,
     resolve_face_lock_path,
     resolve_negative_prompt,
     resolve_provider_settings,
@@ -198,25 +198,23 @@ class QueueWorker:
         settings_map = {str(r["key"]): str(r["value"] or "") for r in setting_rows}
         provider = resolve_provider_settings(settings_map)
         scene_text = layers.scene
-        llm_used = "template"
-        if provider == "openai":
-            enriched = openai_enrich_scene(
-                scene_text,
-                api_key=settings_map.get("openai_api_key", ""),
-                system_prompt=(personality or {}).get("system_prompt"),
-            )
-            if enriched:
-                scene_text = enriched
-                llm_used = "openai"
-            else:
-                logger.info("OpenAI enrich unavailable — using template scene")
+        enriched, llm_used = enrich_scene_for_provider(
+            provider,
+            scene_text,
+            settings_map=settings_map,
+            system_prompt=(personality or {}).get("system_prompt"),
+        )
+        if enriched:
+            scene_text = enriched
+        elif provider in ("openai", "claude", "anthropic", "gemini"):
+            logger.info("%s enrich unavailable — using template scene", provider)
         expanded = expand_prompt(
             scene_text,
             influencer_name=(influencer or {}).get("name") or "Influencer",
             looks_prompt=str(looks_prompt),
             wardrobe_keywords=layers.wardrobe_keywords,
             system_prompt=(personality or {}).get("system_prompt"),
-            provider=provider if llm_used == "openai" else "template",
+            provider=provider if llm_used != "template" else "template",
             is_nsfw=is_nsfw,
             face_locked=face_locked,
             clothing_from_wardrobe=layers.clothing_from_wardrobe,

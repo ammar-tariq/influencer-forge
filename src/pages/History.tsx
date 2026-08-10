@@ -25,6 +25,11 @@ export function History() {
   const [deleteArmed, setDeleteArmed] = useState(false);
   const [watermark, setWatermark] = useState("");
   const [overlay, setOverlay] = useState("");
+  const [cropX1, setCropX1] = useState("");
+  const [cropY1, setCropY1] = useState("");
+  const [cropX2, setCropX2] = useState("");
+  const [cropY2, setCropY2] = useState("");
+  const [editError, setEditError] = useState<string | null>(null);
 
   useEffect(() => {
     const fromUrl = params.get("influencer");
@@ -62,15 +67,62 @@ export function History() {
     mutationFn: (body: {
       generation_id: number;
       rotate_degrees?: number;
+      crop?: [number, number, number, number];
       watermark_text?: string;
       overlay_text?: string;
     }) => api.postProcess(body),
     onSuccess: async (_out, vars) => {
+      setEditError(null);
       const fresh = await api.getGeneration(vars.generation_id);
       setSelected(fresh);
       await qc.invalidateQueries({ queryKey: ["generations"] });
     },
+    onError: (err: Error) => setEditError(err.message),
   });
+
+  async function imageSize(url: string): Promise<{ w: number; h: number }> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+      img.onerror = () => reject(new Error("Could not load image size"));
+      img.src = url;
+    });
+  }
+
+  async function cropMarginPercent(percent: number, src: string, generationId: number) {
+    try {
+      setEditError(null);
+      const { w, h } = await imageSize(src);
+      const mx = Math.floor(w * percent);
+      const my = Math.floor(h * percent);
+      if (w - 2 * mx < 8 || h - 2 * my < 8) {
+        setEditError("Crop too aggressive for this image size");
+        return;
+      }
+      editPost.mutate({
+        generation_id: generationId,
+        crop: [mx, my, w - mx, h - my],
+      });
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : "Crop failed");
+    }
+  }
+
+  function applyManualCrop(generationId: number) {
+    const x1 = Number(cropX1);
+    const y1 = Number(cropY1);
+    const x2 = Number(cropX2);
+    const y2 = Number(cropY2);
+    if (![x1, y1, x2, y2].every((n) => Number.isFinite(n)) || x2 <= x1 || y2 <= y1) {
+      setEditError("Crop needs x1,y1,x2,y2 with x2>x1 and y2>y1");
+      return;
+    }
+    setEditError(null);
+    editPost.mutate({
+      generation_id: generationId,
+      crop: [Math.round(x1), Math.round(y1), Math.round(x2), Math.round(y2)],
+    });
+  }
 
   const browseUnlocked = Boolean(vaultStatus.data?.unlocked);
   const pendingNsfw = vaultStatus.data?.pending_nsfw ?? 0;
@@ -317,7 +369,50 @@ export function History() {
                     >
                       Rotate right
                     </button>
+                    {detailSrc && (
+                      <>
+                        <button
+                          className="btn secondary"
+                          disabled={editPost.isPending}
+                          onClick={() => void cropMarginPercent(0.1, detailSrc, selected.id)}
+                        >
+                          Crop 10% margins
+                        </button>
+                        <button
+                          className="btn secondary"
+                          disabled={editPost.isPending}
+                          onClick={() => void cropMarginPercent(0.2, detailSrc, selected.id)}
+                        >
+                          Crop 20% margins
+                        </button>
+                      </>
+                    )}
                   </div>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <div className="field">
+                      <label>x1</label>
+                      <input value={cropX1} onChange={(e) => setCropX1(e.target.value)} inputMode="numeric" />
+                    </div>
+                    <div className="field">
+                      <label>y1</label>
+                      <input value={cropY1} onChange={(e) => setCropY1(e.target.value)} inputMode="numeric" />
+                    </div>
+                    <div className="field">
+                      <label>x2</label>
+                      <input value={cropX2} onChange={(e) => setCropX2(e.target.value)} inputMode="numeric" />
+                    </div>
+                    <div className="field">
+                      <label>y2</label>
+                      <input value={cropY2} onChange={(e) => setCropY2(e.target.value)} inputMode="numeric" />
+                    </div>
+                  </div>
+                  <button
+                    className="btn secondary"
+                    disabled={editPost.isPending}
+                    onClick={() => applyManualCrop(selected.id)}
+                  >
+                    Apply crop
+                  </button>
                   <div className="field">
                     <label>Watermark</label>
                     <input
@@ -347,6 +442,7 @@ export function History() {
                   >
                     {editPost.isPending ? "Applying…" : "Apply text"}
                   </button>
+                  {editError && <p className="text-sm text-[var(--danger)]">{editError}</p>}
                 </div>
               )}
           </>

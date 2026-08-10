@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Sidebar } from "./components/common/Sidebar";
+import { useTrayQueueControls } from "./hooks/useTrayQueueControls";
 import { useUiStore } from "./store/ui";
 import { Splash } from "./pages/Splash";
 import { Dashboard } from "./pages/Dashboard";
@@ -15,6 +16,7 @@ import { Settings } from "./pages/Settings";
 import { EditPosts } from "./pages/EditPosts";
 
 function Shell({ children }: { children: ReactNode }) {
+  useTrayQueueControls();
   return (
     <div className="app-shell">
       <Sidebar />

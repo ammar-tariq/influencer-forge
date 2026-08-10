@@ -437,6 +437,17 @@ def resolve_provider_settings(settings_map: dict[str, Any]) -> str:
     return str(settings_map.get("llm_provider", "local") or "local").strip().lower()
 
 
+_ENRICH_INSTRUCTION = (
+    "Rewrite the user scene into one short comma-separated image prompt "
+    "(under 40 words). Keep clothing, pose, framing, and setting. No quotes."
+)
+
+
+def _enrich_instruction(system_prompt: str | None) -> str:
+    persona = (system_prompt or "You write concise photorealistic image prompts.").strip()
+    return f"{persona} {_ENRICH_INSTRUCTION}"
+
+
 def openai_enrich_scene(
     scene: str,
     *,
@@ -452,15 +463,8 @@ def openai_enrich_scene(
         import httpx
     except ImportError:
         return None
-    persona = (system_prompt or "You write concise photorealistic image prompts.").strip()
     messages = [
-        {
-            "role": "system",
-            "content": (
-                f"{persona} Rewrite the user scene into one short comma-separated image prompt "
-                "(under 40 words). Keep clothing, pose, framing, and setting. No quotes."
-            ),
-        },
+        {"role": "system", "content": _enrich_instruction(system_prompt)},
         {"role": "user", "content": scene.strip()},
     ]
     try:
@@ -489,6 +493,130 @@ def openai_enrich_scene(
             return text or None
     except Exception:
         return None
+
+
+def claude_enrich_scene(
+    scene: str,
+    *,
+    api_key: str,
+    system_prompt: str | None = None,
+    timeout_s: float = 20.0,
+) -> str | None:
+    """Ask Anthropic Claude to polish a short scene prompt. Returns None on any failure."""
+    key = (api_key or "").strip()
+    if not key or not scene.strip():
+        return None
+    try:
+        import httpx
+    except ImportError:
+        return None
+    try:
+        with httpx.Client(timeout=timeout_s) as client:
+            resp = client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": key,
+                    "anthropic-version": "2023-06-01",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "claude-3-5-haiku-latest",
+                    "max_tokens": 120,
+                    "temperature": 0.4,
+                    "system": _enrich_instruction(system_prompt),
+                    "messages": [{"role": "user", "content": scene.strip()}],
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            parts = data.get("content") or []
+            text = ""
+            for part in parts:
+                if isinstance(part, dict) and part.get("type") == "text":
+                    text = str(part.get("text") or "").strip()
+                    break
+            return text.strip('"') or None
+    except Exception:
+        return None
+
+
+def gemini_enrich_scene(
+    scene: str,
+    *,
+    api_key: str,
+    system_prompt: str | None = None,
+    timeout_s: float = 20.0,
+) -> str | None:
+    """Ask Google Gemini to polish a short scene prompt. Returns None on any failure."""
+    key = (api_key or "").strip()
+    if not key or not scene.strip():
+        return None
+    try:
+        import httpx
+    except ImportError:
+        return None
+    url = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        f"gemini-2.0-flash:generateContent?key={key}"
+    )
+    prompt = f"{_enrich_instruction(system_prompt)}\n\nScene: {scene.strip()}"
+    try:
+        with httpx.Client(timeout=timeout_s) as client:
+            resp = client.post(
+                url,
+                headers={"Content-Type": "application/json"},
+                json={
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {"temperature": 0.4, "maxOutputTokens": 120},
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            candidates = data.get("candidates") or []
+            if not candidates:
+                return None
+            parts = (candidates[0].get("content") or {}).get("parts") or []
+            text = ""
+            for part in parts:
+                if isinstance(part, dict) and part.get("text"):
+                    text = str(part["text"]).strip()
+                    break
+            return text.strip('"') or None
+    except Exception:
+        return None
+
+
+def enrich_scene_for_provider(
+    provider: str,
+    scene: str,
+    *,
+    settings_map: dict[str, Any],
+    system_prompt: str | None = None,
+) -> tuple[str | None, str]:
+    """Return (enriched_scene_or_None, llm_used_label)."""
+    p = (provider or "local").strip().lower()
+    if p == "openai":
+        text = openai_enrich_scene(
+            scene,
+            api_key=str(settings_map.get("openai_api_key", "")),
+            system_prompt=system_prompt,
+        )
+        return text, "openai" if text else "template"
+    if p in ("claude", "anthropic"):
+        text = claude_enrich_scene(
+            scene,
+            api_key=str(settings_map.get("anthropic_api_key", "")),
+            system_prompt=system_prompt,
+        )
+        return text, "claude" if text else "template"
+    if p == "gemini":
+        text = gemini_enrich_scene(
+            scene,
+            api_key=str(settings_map.get("gemini_api_key", "")),
+            system_prompt=system_prompt,
+        )
+        return text, "gemini" if text else "template"
+    return None, "template"
 
 
 def strip_clothing_style(looks_prompt: str) -> str:
